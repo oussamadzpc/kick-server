@@ -19,8 +19,8 @@ const PORT = process.env.PORT || 3000;
 const ADMIN_KEY = process.env.ADMIN_KEY || "super_secret_admin_123";
 
 // ==========================
-// 🔥 تحميل firebase
-const serviceAccount = require("./firebase.json");
+// 🔥 تحميل firebase (مصّلح)
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
 // 🔥 إصلاح private_key (مهم جداً)
 if (serviceAccount.private_key) {
@@ -161,7 +161,7 @@ app.post("/admin/block", async (req, res) => {
 });
 
 // ==========================
-// ✅ ROOT FIX (هذا اللي كان ناقص عندك)
+// ✅ ROOT
 app.get("/", (req, res) => {
   res.send("Server running ✅");
 });
