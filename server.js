@@ -10,7 +10,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ✅ مهم: ربط مجلد public
+// ✅ public
 app.use(express.static(path.join(__dirname, "public")));
 
 const PORT = process.env.PORT || 3000;
@@ -28,7 +28,7 @@ admin.initializeApp({
 const db = admin.firestore();
 
 // ==========================
-// 🔐 حماية الأدمن
+// 🔐 Admin حماية
 // ==========================
 function checkAdmin(req, res, next) {
   const key = req.headers["x-admin-key"];
@@ -41,7 +41,7 @@ function checkAdmin(req, res, next) {
 }
 
 // ==========================
-// 🏠 الصفحة الرئيسية
+// 🏠 الصفحة
 // ==========================
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
@@ -66,28 +66,33 @@ app.get("/admin/requests", checkAdmin, async (req, res) => {
 });
 
 // ==========================
-// ✏️ تحديث الحالة
+// ✏️ تحديث الحالة (FIXED)
 // ==========================
 app.post("/admin/update", checkAdmin, async (req, res) => {
   try {
-    const { id, status } = req.body;
+    let { id, status } = req.body;
 
     if (!id || !status) {
       return res.json({ ok: false });
     }
+
+    // 🔥 تحويل الحالة لتناسب الإكستنشن
+    if (status === "approve") status = "ok";
+    if (status === "reject") status = "no";
 
     await db.collection("requests").doc(id).update({
       status: status
     });
 
     res.json({ ok: true });
+
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
 // ==========================
-// 🚫 بلوك
+// 🚫 BLOCK
 // ==========================
 app.post("/admin/block", checkAdmin, async (req, res) => {
   try {
@@ -100,13 +105,14 @@ app.post("/admin/block", checkAdmin, async (req, res) => {
     await db.collection("requests").doc(id).delete();
 
     res.json({ ok: true });
+
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
 // ==========================
-// 🔥 CHECK CHANNEL (جديد)
+// 🔍 CHECK CHANNEL (الإكستنشن)
 // ==========================
 app.post("/check-channel", async (req, res) => {
   try {
@@ -116,7 +122,7 @@ app.post("/check-channel", async (req, res) => {
 
     channel = channel.toLowerCase().trim();
 
-    // check blacklist
+    // blacklist
     const blocked = await db.collection("blacklist").doc(channel).get();
     if (blocked.exists) {
       return res.json({ blocked: true });
@@ -134,10 +140,10 @@ app.post("/check-channel", async (req, res) => {
       return res.json({ ok: true, exists: true });
     }
 
-    return {
+    return res.json({
       exists: true,
       status: data.status
-    };
+    });
 
   } catch (e) {
     res.json({ ok: false });
@@ -145,7 +151,7 @@ app.post("/check-channel", async (req, res) => {
 });
 
 // ==========================
-// ➕ ADD CHANNEL (جديد)
+// ➕ ADD CHANNEL
 // ==========================
 app.post("/add-channel", async (req, res) => {
   try {
@@ -176,5 +182,5 @@ app.post("/add-channel", async (req, res) => {
 
 // ==========================
 app.listen(PORT, () => {
-  console.log("🚀 Admin Panel Running on port " + PORT);
+  console.log("🚀 Server running on port " + PORT);
 });
