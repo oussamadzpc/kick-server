@@ -3,20 +3,23 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const admin = require("firebase-admin");
+const path = require("path");
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
+// ✅ مهم: ربط مجلد public
+app.use(express.static(path.join(__dirname, "public")));
+
+const PORT = process.env.PORT || 3000;
+const ADMIN_KEY = process.env.ADMIN_KEY;
+
 // ==========================
 // 🔥 Firebase
 // ==========================
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-
-if (serviceAccount.private_key) {
-  serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
-}
+const serviceAccount = require("./firebase.json");
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
@@ -25,93 +28,153 @@ admin.initializeApp({
 const db = admin.firestore();
 
 // ==========================
-function normalize(channel) {
-  return (channel || "").toLowerCase().trim();
+// 🔐 حماية الأدمن
+// ==========================
+function checkAdmin(req, res, next) {
+  const key = req.headers["x-admin-key"];
+
+  if (key !== ADMIN_KEY) {
+    return res.status(403).json({ error: "Unauthorized" });
+  }
+
+  next();
 }
 
 // ==========================
-// ✅ CHECK CHANNEL (مهم)
+// 🏠 الصفحة الرئيسية
+// ==========================
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+// ==========================
+// 📥 جلب الطلبات
+// ==========================
+app.get("/admin/requests", checkAdmin, async (req, res) => {
+  try {
+    const snap = await db.collection("requests").get();
+
+    const list = snap.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    res.json(list);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ==========================
+// ✏️ تحديث الحالة
+// ==========================
+app.post("/admin/update", checkAdmin, async (req, res) => {
+  try {
+    const { id, status } = req.body;
+
+    if (!id || !status) {
+      return res.json({ ok: false });
+    }
+
+    await db.collection("requests").doc(id).update({
+      status: status
+    });
+
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ==========================
+// 🚫 بلوك
+// ==========================
+app.post("/admin/block", checkAdmin, async (req, res) => {
+  try {
+    const { id } = req.body;
+
+    await db.collection("blacklist").doc(id).set({
+      blockedAt: Date.now()
+    });
+
+    await db.collection("requests").doc(id).delete();
+
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ==========================
+// 🔥 CHECK CHANNEL (جديد)
 // ==========================
 app.post("/check-channel", async (req, res) => {
   try {
-    const channel = normalize(req.body.channel);
+    let { channel } = req.body;
 
     if (!channel) return res.json({ ok: false });
 
+    channel = channel.toLowerCase().trim();
+
+    // check blacklist
     const blocked = await db.collection("blacklist").doc(channel).get();
     if (blocked.exists) {
       return res.json({ blocked: true });
     }
 
-    const snap = await db
-      .collection("requests")
-      .where("channel", "==", channel)
-      .get();
+    const doc = await db.collection("requests").doc(channel).get();
 
-    if (snap.empty) {
+    if (!doc.exists) {
       return res.json({ exists: false });
     }
 
-    const data = snap.docs[0].data();
+    const data = doc.data();
 
-    return res.json({
+    if (data.status === "ok") {
+      return res.json({ ok: true, exists: true });
+    }
+
+    return {
       exists: true,
       status: data.status
-    });
+    };
 
   } catch (e) {
-    console.log("CHECK ERROR:", e);
     res.json({ ok: false });
   }
 });
 
 // ==========================
-// ✅ REGISTER
+// ➕ ADD CHANNEL (جديد)
 // ==========================
-app.post("/register", async (req, res) => {
+app.post("/add-channel", async (req, res) => {
   try {
-    const channel = normalize(req.body.channel);
+    let { channel } = req.body;
 
     if (!channel) return res.json({ ok: false });
 
-    const blocked = await db.collection("blacklist").doc(channel).get();
-    if (blocked.exists) {
-      return res.json({ ok: false, blocked: true });
+    channel = channel.toLowerCase().trim();
+
+    const doc = await db.collection("requests").doc(channel).get();
+
+    if (doc.exists) {
+      return res.json({ ok: true, exists: true });
     }
 
-    const snap = await db
-      .collection("requests")
-      .where("channel", "==", channel)
-      .get();
-
-    if (!snap.empty) {
-      return res.json({ ok: false, exists: true });
-    }
-
-    await db.collection("requests").add({
-      channel,
+    await db.collection("requests").doc(channel).set({
+      channel: channel,
       status: "pending",
       createdAt: Date.now()
     });
 
-    res.json({ ok: true });
+    res.json({ ok: true, created: true });
 
   } catch (e) {
-    console.log("REGISTER ERROR:", e);
     res.json({ ok: false });
   }
 });
 
 // ==========================
-// ✅ ROOT
-// ==========================
-app.get("/", (req, res) => {
-  res.send("Server running ✅");
-});
-
-// ==========================
-const PORT = process.env.PORT || 3000;
-
 app.listen(PORT, () => {
-  console.log("🚀 Server running on port " + PORT);
+  console.log("🚀 Admin Panel Running on port " + PORT);
 });
