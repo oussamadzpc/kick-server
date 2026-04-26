@@ -7,9 +7,14 @@ app.use(cors());
 app.use(express.json());
 
 // ==========================
-// 🔐 Firebase (من Environment Variable)
+// 🔐 Firebase (FIXED)
 // ==========================
-const serviceAccount = JSON.parse(process.env.FIREBASE_KEY);
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+
+// إصلاح private_key
+if (serviceAccount.private_key) {
+  serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
+}
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
@@ -32,6 +37,29 @@ async function checkUser(userId) {
 
   return { ok: true };
 }
+
+// ==========================
+// 🔥 CHECK CHANNEL
+// ==========================
+app.post("/check-channel", async (req, res) => {
+  try {
+    let { channel } = req.body;
+
+    if (!channel) return res.json({ exists: false });
+
+    channel = channel.trim().toLowerCase();
+
+    const doc = await db.collection("requests").doc(channel).get();
+
+    res.json({
+      exists: doc.exists,
+      status: doc.exists ? doc.data().status : null
+    });
+
+  } catch (e) {
+    res.json({ exists: false });
+  }
+});
 
 // ==========================
 // 🔄 SYNC
@@ -80,7 +108,7 @@ app.post("/sync", async (req, res) => {
 });
 
 // ==========================
-// ➕ ADD CHANNEL (doc ID = channel)
+// ➕ ADD CHANNEL
 // ==========================
 app.post("/add-channel", async (req, res) => {
   try {
@@ -153,7 +181,7 @@ app.post("/create-user", async (req, res) => {
 });
 
 // ==========================
-// 🚀 SERVER START (مهم لـ Render)
+// 🚀 SERVER START
 // ==========================
 const PORT = process.env.PORT || 3000;
 
