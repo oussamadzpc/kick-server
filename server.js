@@ -184,3 +184,29 @@ app.post("/add-channel", async (req, res) => {
 app.listen(PORT, () => {
   console.log("🚀 Server running on port " + PORT);
 });
+app.post("/register", async (req, res) => {
+  try {
+    let { channel } = req.body;
+
+    if (!channel) return res.json({ ok: false });
+
+    channel = channel.toLowerCase().trim();
+
+    const doc = await db.collection("requests").doc(channel).get();
+
+    if (doc.exists) {
+      return res.json({ ok: true, exists: true });
+    }
+
+    await db.collection("requests").doc(channel).set({
+      channel,
+      status: "pending",
+      createdAt: Date.now()
+    });
+
+    res.json({ ok: true, created: true });
+
+  } catch (e) {
+    res.json({ ok: false });
+  }
+});
