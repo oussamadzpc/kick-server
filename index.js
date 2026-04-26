@@ -7,13 +7,25 @@ app.use(cors());
 app.use(express.json());
 
 // ==========================
-// 🔐 Firebase (FIXED)
+// 🔐 Firebase (FIXED SAFE)
 // ==========================
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+let serviceAccount;
 
-// إصلاح private_key
-if (serviceAccount.private_key) {
-  serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
+try {
+  if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+    throw new Error("FIREBASE_SERVICE_ACCOUNT is missing");
+  }
+
+  serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+
+  // إصلاح private_key
+  if (serviceAccount.private_key) {
+    serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
+  }
+
+} catch (e) {
+  console.error("🔥 Firebase ENV ERROR:", e.message);
+  process.exit(1); // يوقف السيرفر بدل ما يشتغل غلط
 }
 
 admin.initializeApp({
@@ -178,6 +190,13 @@ app.post("/create-user", async (req, res) => {
   });
 
   res.json({ ok: true });
+});
+
+// ==========================
+// ✅ ROOT (مهم للاختبار)
+// ==========================
+app.get("/", (req, res) => {
+  res.send("Server working ✅");
 });
 
 // ==========================
