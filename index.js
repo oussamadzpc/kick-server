@@ -18,14 +18,13 @@ try {
 
   serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
-  // إصلاح private_key
   if (serviceAccount.private_key) {
     serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
   }
 
 } catch (e) {
   console.error("🔥 Firebase ENV ERROR:", e.message);
-  process.exit(1); // يوقف السيرفر بدل ما يشتغل غلط
+  process.exit(1);
 }
 
 admin.initializeApp({
@@ -51,25 +50,45 @@ async function checkUser(userId) {
 }
 
 // ==========================
-// 🔥 CHECK CHANNEL
+// 🔥 CHECK CHANNEL (FIXED LOGIN)
 // ==========================
 app.post("/check-channel", async (req, res) => {
   try {
     let { channel } = req.body;
 
-    if (!channel) return res.json({ exists: false });
+    if (!channel) {
+      return res.json({ ok: false });
+    }
 
     channel = channel.trim().toLowerCase();
 
+    // 🚫 blacklist
+    const blocked = await db.collection("blacklist").doc(channel).get();
+    if (blocked.exists) {
+      return res.json({ ok: false, blocked: true });
+    }
+
     const doc = await db.collection("requests").doc(channel).get();
 
-    res.json({
-      exists: doc.exists,
-      status: doc.exists ? doc.data().status : null
+    if (!doc.exists) {
+      return res.json({ ok: false, exists: false });
+    }
+
+    const data = doc.data();
+
+    if (data.status === "ok") {
+      return res.json({ ok: true });
+    }
+
+    return res.json({
+      ok: false,
+      exists: true,
+      status: data.status
     });
 
   } catch (e) {
-    res.json({ exists: false });
+    console.log("CHECK ERROR:", e);
+    res.json({ ok: false });
   }
 });
 
@@ -193,7 +212,7 @@ app.post("/create-user", async (req, res) => {
 });
 
 // ==========================
-// ✅ ROOT (مهم للاختبار)
+// ✅ ROOT
 // ==========================
 app.get("/", (req, res) => {
   res.send("Server working ✅");
