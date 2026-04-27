@@ -18,7 +18,7 @@ admin.initializeApp({
 const db = admin.firestore();
 
 // ==========================
-// 🔐 التحقق من الاشتراك (موجود لكن غير مستخدم)
+// 🔐 التحقق من الاشتراك
 // ==========================
 async function checkUser(userId) {
   const doc = await db.collection("users").doc(userId).get();
@@ -57,7 +57,7 @@ app.post("/check-channel", async (req, res) => {
 });
 
 // ==========================
-// 🔄 SYNC (POST)
+// 🔄 SYNC
 // ==========================
 app.post("/sync", async (req, res) => {
   try {
@@ -91,9 +91,6 @@ app.post("/sync", async (req, res) => {
   }
 });
 
-// ==========================
-// 🌐 SYNC (GET)
-// ==========================
 app.get("/sync", async (req, res) => {
   try {
     const reqSnap = await db.collection("requests").get();
@@ -199,11 +196,13 @@ app.post("/create-user", async (req, res) => {
 });
 
 // ==========================
-// 🔴 CHECK LIVE (NEW)
+// 🔴 CHECK LIVE (FIXED FINAL)
 // ==========================
 const puppeteer = require("puppeteer");
 
 app.post("/check-live", async (req, res) => {
+  let browser;
+
   try {
     let { channel } = req.body;
 
@@ -211,7 +210,7 @@ app.post("/check-live", async (req, res) => {
 
     channel = channel.trim().toLowerCase();
 
-    const browser = await puppeteer.launch({
+    browser = await puppeteer.launch({
       headless: "new",
       args: ["--no-sandbox", "--disable-setuid-sandbox"]
     });
@@ -219,21 +218,38 @@ app.post("/check-live", async (req, res) => {
     const page = await browser.newPage();
 
     await page.goto(`https://kick.com/${channel}`, {
-      waitUntil: "domcontentloaded",
-      timeout: 15000
+      waitUntil: "networkidle2",
+      timeout: 20000
     });
 
+    // 🔥 ننتظر تحميل الصفحة فعليًا
+    await new Promise(r => setTimeout(r, 3000));
+
     const isLive = await page.evaluate(() => {
-      return !!document.querySelector("video");
+      const video = document.querySelector("video");
+
+      if (!video) return false;
+
+      // إذا الفيديو شغال فعليًا
+      if (!video.paused && video.readyState > 2) return true;
+
+      // fallback: وجود كلمة live
+      const text = document.body.innerText.toLowerCase();
+      if (text.includes("live") && video) return true;
+
+      return false;
     });
 
     await browser.close();
 
-    res.json({ live: isLive });
+    return res.json({ live: isLive });
 
   } catch (e) {
     console.log("LIVE CHECK ERROR:", e);
-    res.json({ live: false });
+
+    if (browser) await browser.close();
+
+    return res.json({ live: false });
   }
 });
 
