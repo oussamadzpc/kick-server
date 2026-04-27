@@ -1,3 +1,5 @@
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+
 const express = require("express");
 const cors = require("cors");
 const admin = require("firebase-admin");
@@ -16,6 +18,45 @@ admin.initializeApp({
 });
 
 const db = admin.firestore();
+
+// ==========================
+// 🧠 CACHE SYSTEM
+// ==========================
+let cachedChannels = [];
+let lastFetch = 0;
+
+async function refreshCache() {
+  try {
+    const reqSnap = await db.collection("requests").get();
+    const blackSnap = await db.collection("blacklist").get();
+
+    const blacklist = blackSnap.docs.map(d => d.id);
+
+    let channels = [];
+
+    reqSnap.forEach(doc => {
+      const data = doc.data();
+
+      if (!data.channel) return;
+      if (data.status !== "ok") return;
+      if (blacklist.includes(data.channel)) return;
+
+      channels.push(data.channel);
+    });
+
+    cachedChannels = [...new Set(channels)];
+    lastFetch = Date.now();
+
+    console.log("✅ Cache updated:", cachedChannels.length);
+
+  } catch (e) {
+    console.log("CACHE ERROR:", e);
+  }
+}
+
+// تحديث كل 30 ثانية فقط
+setInterval(refreshCache, 30000);
+refreshCache();
 
 // ==========================
 async function checkUser(userId) {
@@ -53,67 +94,20 @@ app.post("/check-channel", async (req, res) => {
 });
 
 // ==========================
+// 🟢 SYNC FROM CACHE
+// ==========================
 app.post("/sync", async (req, res) => {
-  try {
-    const reqSnap = await db.collection("requests").get();
-    const blackSnap = await db.collection("blacklist").get();
-
-    const blacklist = blackSnap.docs.map(d => d.id);
-
-    let channels = [];
-
-    reqSnap.forEach(doc => {
-      const data = doc.data();
-
-      if (!data.channel) return;
-      if (data.status !== "ok") return;
-      if (blacklist.includes(data.channel)) return;
-
-      channels.push(data.channel);
-    });
-
-    channels = [...new Set(channels)];
-
-    res.json({
-      status: "active",
-      channels
-    });
-
-  } catch (e) {
-    console.log("SYNC ERROR:", e);
-    res.json({ error: e.toString() });
-  }
+  res.json({
+    status: "active",
+    channels: cachedChannels
+  });
 });
 
 app.get("/sync", async (req, res) => {
-  try {
-    const reqSnap = await db.collection("requests").get();
-    const blackSnap = await db.collection("blacklist").get();
-
-    const blacklist = blackSnap.docs.map(d => d.id);
-
-    let channels = [];
-
-    reqSnap.forEach(doc => {
-      const data = doc.data();
-
-      if (!data.channel) return;
-      if (data.status !== "ok") return;
-      if (blacklist.includes(data.channel)) return;
-
-      channels.push(data.channel);
-    });
-
-    channels = [...new Set(channels)];
-
-    res.json({
-      status: "active",
-      channels
-    });
-
-  } catch (e) {
-    res.json({ error: e.toString() });
-  }
+  res.json({
+    status: "active",
+    channels: cachedChannels
+  });
 });
 
 // ==========================
@@ -184,7 +178,7 @@ app.post("/create-user", async (req, res) => {
 });
 
 // ==========================
-// 🔴 CHECK LIVE (FINAL FIX)
+// 🔴 CHECK LIVE (FIXED)
 // ==========================
 app.post("/check-live", async (req, res) => {
   try {
@@ -201,16 +195,14 @@ app.post("/check-live", async (req, res) => {
     try {
       data = JSON.parse(text);
     } catch {
-      console.log("❌ Not JSON:", text.slice(0, 80));
       return res.json({ live: false });
     }
 
-    const isLive = data?.livestream !== null;
+    const isLive = data?.livestream?.is_live === true;
 
     return res.json({ live: isLive });
 
-  } catch (e) {
-    console.log("LIVE ERROR:", e);
+  } catch {
     return res.json({ live: false });
   }
 });
