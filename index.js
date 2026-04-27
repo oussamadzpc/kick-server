@@ -57,7 +57,7 @@ app.post("/check-channel", async (req, res) => {
 });
 
 // ==========================
-// 🔄 SYNC (🔥 تم إصلاحه)
+// 🔄 SYNC (POST)
 // ==========================
 app.post("/sync", async (req, res) => {
   try {
@@ -87,6 +87,40 @@ app.post("/sync", async (req, res) => {
 
   } catch (e) {
     console.log("SYNC ERROR:", e);
+    res.json({ error: e.toString() });
+  }
+});
+
+// ==========================
+// 🌐 SYNC (GET) ←🔥 هذا الجديد
+// ==========================
+app.get("/sync", async (req, res) => {
+  try {
+    const reqSnap = await db.collection("requests").get();
+    const blackSnap = await db.collection("blacklist").get();
+
+    const blacklist = blackSnap.docs.map(d => d.id);
+
+    let channels = [];
+
+    reqSnap.forEach(doc => {
+      const data = doc.data();
+
+      if (!data.channel) return;
+      if (data.status !== "ok") return;
+      if (blacklist.includes(data.channel)) return;
+
+      channels.push(data.channel);
+    });
+
+    channels = [...new Set(channels)];
+
+    res.json({
+      status: "active",
+      channels
+    });
+
+  } catch (e) {
     res.json({ error: e.toString() });
   }
 });
@@ -149,7 +183,7 @@ app.post("/block", async (req, res) => {
 });
 
 // ==========================
-// 👤 CREATE USER (باقي لكن غير مهم)
+// 👤 CREATE USER
 // ==========================
 app.post("/create-user", async (req, res) => {
   const { userId } = req.body;
