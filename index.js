@@ -184,7 +184,7 @@ app.post("/create-user", async (req, res) => {
 });
 
 // ==========================
-// 🔴 CHECK LIVE (FINAL FIX)
+// 🔴 CHECK LIVE (FIXED FINAL)
 // ==========================
 app.post("/check-live", async (req, res) => {
   try {
@@ -193,7 +193,11 @@ app.post("/check-live", async (req, res) => {
 
     channel = channel.trim().toLowerCase();
 
-    const response = await fetch(`https://kick.com/api/v2/channels/${channel}`);
+    const response = await fetch(`https://kick.com/api/v2/channels/${channel}`, {
+      headers: {
+        "User-Agent": "Mozilla/5.0"
+      }
+    });
 
     const text = await response.text();
 
@@ -205,7 +209,8 @@ app.post("/check-live", async (req, res) => {
       return res.json({ live: false });
     }
 
-    const isLive = data?.livestream !== null;
+    // ✅ الحل الحقيقي
+    const isLive = data?.livestream?.is_live === true;
 
     return res.json({ live: isLive });
 
