@@ -7,25 +7,9 @@ app.use(cors());
 app.use(express.json());
 
 // ==========================
-// 🔐 Firebase (FIXED SAFE)
+// 🔐 Firebase (من Environment Variable)
 // ==========================
-let serviceAccount;
-
-try {
-  if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
-    throw new Error("FIREBASE_SERVICE_ACCOUNT is missing");
-  }
-
-  serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-
-  if (serviceAccount.private_key) {
-    serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
-  }
-
-} catch (e) {
-  console.error("🔥 Firebase ENV ERROR:", e.message);
-  process.exit(1);
-}
+const serviceAccount = JSON.parse(process.env.FIREBASE_KEY);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
@@ -34,7 +18,7 @@ admin.initializeApp({
 const db = admin.firestore();
 
 // ==========================
-// 🔐 التحقق من الاشتراك
+// 🔐 التحقق من الاشتراك (موجود لكن غير مستخدم)
 // ==========================
 async function checkUser(userId) {
   const doc = await db.collection("users").doc(userId).get();
@@ -50,64 +34,33 @@ async function checkUser(userId) {
 }
 
 // ==========================
-// 🔥 CHECK CHANNEL (FIXED LOGIN)
+// 🔥 CHECK CHANNEL
 // ==========================
 app.post("/check-channel", async (req, res) => {
   try {
     let { channel } = req.body;
 
-    if (!channel) {
-      return res.json({ ok: false });
-    }
+    if (!channel) return res.json({ exists: false });
 
     channel = channel.trim().toLowerCase();
 
-    // 🚫 blacklist
-    const blocked = await db.collection("blacklist").doc(channel).get();
-    if (blocked.exists) {
-      return res.json({ ok: false, blocked: true });
-    }
-
     const doc = await db.collection("requests").doc(channel).get();
 
-    if (!doc.exists) {
-      return res.json({ ok: false, exists: false });
-    }
-
-    const data = doc.data();
-
-    if (data.status === "ok") {
-      return res.json({ ok: true });
-    }
-
-    return res.json({
-      ok: false,
-      exists: true,
-      status: data.status
+    res.json({
+      exists: doc.exists,
+      status: doc.exists ? doc.data().status : null
     });
 
   } catch (e) {
-    console.log("CHECK ERROR:", e);
-    res.json({ ok: false });
+    res.json({ exists: false });
   }
 });
 
 // ==========================
-// 🔄 SYNC
+// 🔄 SYNC (🔥 تم إصلاحه)
 // ==========================
 app.post("/sync", async (req, res) => {
   try {
-    const { userId } = req.body;
-
-    const check = await checkUser(userId);
-
-    if (!check.ok) {
-      return res.json({
-        status: "blocked",
-        channels: []
-      });
-    }
-
     const reqSnap = await db.collection("requests").get();
     const blackSnap = await db.collection("blacklist").get();
 
@@ -196,7 +149,7 @@ app.post("/block", async (req, res) => {
 });
 
 // ==========================
-// 👤 CREATE USER
+// 👤 CREATE USER (باقي لكن غير مهم)
 // ==========================
 app.post("/create-user", async (req, res) => {
   const { userId } = req.body;
@@ -209,13 +162,6 @@ app.post("/create-user", async (req, res) => {
   });
 
   res.json({ ok: true });
-});
-
-// ==========================
-// ✅ ROOT
-// ==========================
-app.get("/", (req, res) => {
-  res.send("Server working ✅");
 });
 
 // ==========================
