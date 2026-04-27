@@ -10,7 +10,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ✅ public
+// ✅ مهم: ربط مجلد public
 app.use(express.static(path.join(__dirname, "public")));
 
 const PORT = process.env.PORT || 3000;
@@ -28,7 +28,7 @@ admin.initializeApp({
 const db = admin.firestore();
 
 // ==========================
-// 🔐 Admin حماية
+// 🔐 حماية الأدمن
 // ==========================
 function checkAdmin(req, res, next) {
   const key = req.headers["x-admin-key"];
@@ -41,7 +41,7 @@ function checkAdmin(req, res, next) {
 }
 
 // ==========================
-// 🏠 الصفحة
+// 🏠 الصفحة الرئيسية (حل مشكلة Cannot GET /)
 // ==========================
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
@@ -66,33 +66,28 @@ app.get("/admin/requests", checkAdmin, async (req, res) => {
 });
 
 // ==========================
-// ✏️ تحديث الحالة (FIXED)
+// ✏️ تحديث الحالة
 // ==========================
 app.post("/admin/update", checkAdmin, async (req, res) => {
   try {
-    let { id, status } = req.body;
+    const { id, status } = req.body;
 
     if (!id || !status) {
       return res.json({ ok: false });
     }
-
-    // 🔥 تحويل الحالة لتناسب الإكستنشن
-    if (status === "approve") status = "ok";
-    if (status === "reject") status = "no";
 
     await db.collection("requests").doc(id).update({
       status: status
     });
 
     res.json({ ok: true });
-
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
 // ==========================
-// 🚫 BLOCK
+// 🚫 بلوك
 // ==========================
 app.post("/admin/block", checkAdmin, async (req, res) => {
   try {
@@ -105,108 +100,12 @@ app.post("/admin/block", checkAdmin, async (req, res) => {
     await db.collection("requests").doc(id).delete();
 
     res.json({ ok: true });
-
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
 // ==========================
-// 🔍 CHECK CHANNEL (الإكستنشن)
-// ==========================
-app.post("/check-channel", async (req, res) => {
-  try {
-    let { channel } = req.body;
-
-    if (!channel) return res.json({ ok: false });
-
-    channel = channel.toLowerCase().trim();
-
-    // blacklist
-    const blocked = await db.collection("blacklist").doc(channel).get();
-    if (blocked.exists) {
-      return res.json({ blocked: true });
-    }
-
-    const doc = await db.collection("requests").doc(channel).get();
-
-    if (!doc.exists) {
-      return res.json({ exists: false });
-    }
-
-    const data = doc.data();
-
-    if (data.status === "ok") {
-      return res.json({ ok: true, exists: true });
-    }
-
-    return res.json({
-      exists: true,
-      status: data.status
-    });
-
-  } catch (e) {
-    res.json({ ok: false });
-  }
-});
-
-// ==========================
-// ➕ ADD CHANNEL
-// ==========================
-app.post("/add-channel", async (req, res) => {
-  try {
-    let { channel } = req.body;
-
-    if (!channel) return res.json({ ok: false });
-
-    channel = channel.toLowerCase().trim();
-
-    const doc = await db.collection("requests").doc(channel).get();
-
-    if (doc.exists) {
-      return res.json({ ok: true, exists: true });
-    }
-
-    await db.collection("requests").doc(channel).set({
-      channel: channel,
-      status: "pending",
-      createdAt: Date.now()
-    });
-
-    res.json({ ok: true, created: true });
-
-  } catch (e) {
-    res.json({ ok: false });
-  }
-});
-
-// ==========================
 app.listen(PORT, () => {
-  console.log("🚀 Server running on port " + PORT);
-});
-app.post("/register", async (req, res) => {
-  try {
-    let { channel } = req.body;
-
-    if (!channel) return res.json({ ok: false });
-
-    channel = channel.toLowerCase().trim();
-
-    const doc = await db.collection("requests").doc(channel).get();
-
-    if (doc.exists) {
-      return res.json({ ok: true, exists: true });
-    }
-
-    await db.collection("requests").doc(channel).set({
-      channel,
-      status: "pending",
-      createdAt: Date.now()
-    });
-
-    res.json({ ok: true, created: true });
-
-  } catch (e) {
-    res.json({ ok: false });
-  }
+  console.log("🚀 Admin Panel Running on port " + PORT);
 });
