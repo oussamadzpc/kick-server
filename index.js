@@ -7,7 +7,7 @@ app.use(cors());
 app.use(express.json());
 
 // ==========================
-// 🔐 Firebase (من Environment Variable)
+// 🔐 Firebase
 // ==========================
 const serviceAccount = JSON.parse(process.env.FIREBASE_KEY);
 
@@ -17,8 +17,6 @@ admin.initializeApp({
 
 const db = admin.firestore();
 
-// ==========================
-// 🔐 التحقق من الاشتراك
 // ==========================
 async function checkUser(userId) {
   const doc = await db.collection("users").doc(userId).get();
@@ -33,8 +31,6 @@ async function checkUser(userId) {
   return { ok: true };
 }
 
-// ==========================
-// 🔥 CHECK CHANNEL
 // ==========================
 app.post("/check-channel", async (req, res) => {
   try {
@@ -51,13 +47,11 @@ app.post("/check-channel", async (req, res) => {
       status: doc.exists ? doc.data().status : null
     });
 
-  } catch (e) {
+  } catch {
     res.json({ exists: false });
   }
 });
 
-// ==========================
-// 🔄 SYNC
 // ==========================
 app.post("/sync", async (req, res) => {
   try {
@@ -123,8 +117,6 @@ app.get("/sync", async (req, res) => {
 });
 
 // ==========================
-// ➕ ADD CHANNEL
-// ==========================
 app.post("/add-channel", async (req, res) => {
   try {
     let { channel } = req.body;
@@ -146,7 +138,7 @@ app.post("/add-channel", async (req, res) => {
     }
 
     await db.collection("requests").doc(channel).set({
-      channel: channel,
+      channel,
       status: "pending",
       createdAt: Date.now()
     });
@@ -163,8 +155,6 @@ app.post("/add-channel", async (req, res) => {
 });
 
 // ==========================
-// 🗑 BLOCK
-// ==========================
 app.post("/block", async (req, res) => {
   const { channel } = req.body;
 
@@ -180,8 +170,6 @@ app.post("/block", async (req, res) => {
 });
 
 // ==========================
-// 👤 CREATE USER
-// ==========================
 app.post("/create-user", async (req, res) => {
   const { userId } = req.body;
 
@@ -196,65 +184,37 @@ app.post("/create-user", async (req, res) => {
 });
 
 // ==========================
-// 🔴 CHECK LIVE (FIXED FINAL)
+// 🔴 CHECK LIVE (FINAL FIX)
 // ==========================
-const puppeteer = require("puppeteer");
-
 app.post("/check-live", async (req, res) => {
-  let browser;
-
   try {
     let { channel } = req.body;
-
     if (!channel) return res.json({ live: false });
 
     channel = channel.trim().toLowerCase();
 
-    browser = await puppeteer.launch({
-      headless: "new",
-      args: ["--no-sandbox", "--disable-setuid-sandbox"]
-    });
+    const response = await fetch(`https://kick.com/api/v2/channels/${channel}`);
 
-    const page = await browser.newPage();
+    const text = await response.text();
 
-    await page.goto(`https://kick.com/${channel}`, {
-      waitUntil: "networkidle2",
-      timeout: 20000
-    });
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      console.log("❌ Not JSON:", text.slice(0, 80));
+      return res.json({ live: false });
+    }
 
-    // 🔥 ننتظر تحميل الصفحة فعليًا
-    await new Promise(r => setTimeout(r, 3000));
-
-    const isLive = await page.evaluate(() => {
-      const video = document.querySelector("video");
-
-      if (!video) return false;
-
-      // إذا الفيديو شغال فعليًا
-      if (!video.paused && video.readyState > 2) return true;
-
-      // fallback: وجود كلمة live
-      const text = document.body.innerText.toLowerCase();
-      if (text.includes("live") && video) return true;
-
-      return false;
-    });
-
-    await browser.close();
+    const isLive = data?.livestream !== null;
 
     return res.json({ live: isLive });
 
   } catch (e) {
-    console.log("LIVE CHECK ERROR:", e);
-
-    if (browser) await browser.close();
-
+    console.log("LIVE ERROR:", e);
     return res.json({ live: false });
   }
 });
 
-// ==========================
-// 🚀 SERVER START
 // ==========================
 const PORT = process.env.PORT || 3000;
 
