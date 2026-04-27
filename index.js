@@ -1,5 +1,3 @@
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
-
 const express = require("express");
 const cors = require("cors");
 const admin = require("firebase-admin");
@@ -186,7 +184,7 @@ app.post("/create-user", async (req, res) => {
 });
 
 // ==========================
-// 🔴 CHECK LIVE (ULTRA SAFE)
+// 🔴 CHECK LIVE (FINAL FIX)
 // ==========================
 app.post("/check-live", async (req, res) => {
   try {
@@ -195,42 +193,24 @@ app.post("/check-live", async (req, res) => {
 
     channel = channel.trim().toLowerCase();
 
-    // ⏱️ timeout حماية
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
+    const response = await fetch(`https://kick.com/api/v2/channels/${channel}`);
 
-    let response;
-    try {
-      response = await fetch(`https://kick.com/api/v2/channels/${channel}`, {
-        headers: { "User-Agent": "Mozilla/5.0" },
-        signal: controller.signal
-      });
-    } catch (e) {
-      clearTimeout(timeout);
-      console.log("❌ FETCH FAIL:", e.message);
-      return res.json({ live: false });
-    }
-
-    clearTimeout(timeout);
+    const text = await response.text();
 
     let data;
     try {
-      data = await response.json();
+      data = JSON.parse(text);
     } catch {
+      console.log("❌ Not JSON:", text.slice(0, 80));
       return res.json({ live: false });
     }
 
-    // 🔥 تحقق دقيق جدًا
-    const isLive =
-      data &&
-      typeof data === "object" &&
-      data.livestream &&
-      data.livestream.is_live === true;
+    const isLive = data?.livestream !== null;
 
     return res.json({ live: isLive });
 
   } catch (e) {
-    console.log("LIVE ERROR:", e.message);
+    console.log("LIVE ERROR:", e);
     return res.json({ live: false });
   }
 });
