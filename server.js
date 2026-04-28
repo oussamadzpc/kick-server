@@ -63,7 +63,7 @@ app.get("/admin/requests", checkAdmin, async (req, res) => {
 });
 
 // ==========================
-// 🆕 جلب جميع المستخدمين (approved + pending)
+// 🆕 جلب جميع المستخدمين
 // ==========================
 app.get("/admin/all-users", checkAdmin, async (req, res) => {
   try {
@@ -86,7 +86,7 @@ app.get("/admin/all-users", checkAdmin, async (req, res) => {
 });
 
 // ==========================
-// ✏️ تحديث الحالة (قبول / رفض)
+// ✏️ تحديث الحالة
 // ==========================
 app.post("/admin/update", checkAdmin, async (req, res) => {
   try {
@@ -203,6 +203,37 @@ app.post("/user/register", async (req, res) => {
 
   } catch (e) {
     res.json({ ok: false, message: "Server error" });
+  }
+});
+
+// ==========================
+// 🔐 حفظ سؤال الأمان (🔥 الجديد فقط)
+// ==========================
+app.post("/user/security", async (req, res) => {
+  try {
+    const { channel, question, answer } = req.body;
+
+    if (!channel || !question || !answer) {
+      return res.json({ ok: false });
+    }
+
+    await fetch(`${SUPABASE_URL}/rest/v1/users?channel=eq.${channel}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`
+      },
+      body: JSON.stringify({
+        security_question: question,
+        security_answer: answer
+      })
+    });
+
+    res.json({ ok: true });
+
+  } catch (e) {
+    res.json({ ok: false });
   }
 });
 
