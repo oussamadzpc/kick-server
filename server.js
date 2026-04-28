@@ -2,7 +2,6 @@ require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
-const admin = require("firebase-admin");
 const path = require("path");
 
 const app = express();
@@ -10,25 +9,18 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ✅ مهم: ربط مجلد public
+// static
 app.use(express.static(path.join(__dirname, "public")));
 
 const PORT = process.env.PORT || 3000;
 const ADMIN_KEY = process.env.ADMIN_KEY;
 
-// ==========================
-// 🔥 Firebase
-// ==========================
-const serviceAccount = require("./firebase.json");
-
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
-
-const db = admin.firestore();
+// 🔥 Supabase config
+const SUPABASE_URL = "https://pdgglivspfctmzbjpqjm.supabase.co";
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
 
 // ==========================
-// 🔐 حماية الأدمن
+// 🔐 Admin حماية
 // ==========================
 function checkAdmin(req, res, next) {
   const key = req.headers["x-admin-key"];
@@ -41,32 +33,60 @@ function checkAdmin(req, res, next) {
 }
 
 // ==========================
-// 🏠 الصفحة الرئيسية (حل مشكلة Cannot GET /)
+// 🏠 الصفحة الرئيسية
 // ==========================
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 // ==========================
-// 📥 جلب الطلبات
+// 📥 جلب الطلبات (users غير المقبولين)
 // ==========================
 app.get("/admin/requests", checkAdmin, async (req, res) => {
   try {
-    const snap = await db.collection("requests").get();
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/users?approved=eq.false`,
+      {
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`
+        }
+      }
+    );
 
-    const list = snap.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    const data = await response.json();
+    res.json(data);
 
-    res.json(list);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
 // ==========================
-// ✏️ تحديث الحالة
+// 🆕 جلب جميع المستخدمين (approved + pending)
+// ==========================
+app.get("/admin/all-users", checkAdmin, async (req, res) => {
+  try {
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/users`,
+      {
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`
+        }
+      }
+    );
+
+    const data = await response.json();
+    res.json(data);
+
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ==========================
+// ✏️ تحديث الحالة (قبول / رفض)
 // ==========================
 app.post("/admin/update", checkAdmin, async (req, res) => {
   try {
@@ -76,11 +96,29 @@ app.post("/admin/update", checkAdmin, async (req, res) => {
       return res.json({ ok: false });
     }
 
-    await db.collection("requests").doc(id).update({
-      status: status
-    });
+    if (status === "approved") {
+      await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`
+        },
+        body: JSON.stringify({ approved: true })
+      });
+
+    } else if (status === "rejected") {
+      await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${id}`, {
+        method: "DELETE",
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`
+        }
+      });
+    }
 
     res.json({ ok: true });
+
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -93,19 +131,82 @@ app.post("/admin/block", checkAdmin, async (req, res) => {
   try {
     const { id } = req.body;
 
-    await db.collection("blacklist").doc(id).set({
-      blockedAt: Date.now()
+    await fetch(`${SUPABASE_URL}/rest/v1/blacklist`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`
+      },
+      body: JSON.stringify({
+        id,
+        blockedAt: Date.now()
+      })
     });
 
-    await db.collection("requests").doc(id).delete();
+    await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${id}`, {
+      method: "DELETE",
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`
+      }
+    });
 
     res.json({ ok: true });
+
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
 // ==========================
+// 🔥 USER REGISTER
+// ==========================
+app.post("/user/register", async (req, res) => {
+  try {
+    const { channel, password } = req.body;
+
+    if (!channel || !password) {
+      return res.json({ ok: false, message: "Missing data" });
+    }
+
+    const check = await fetch(
+      `${SUPABASE_URL}/rest/v1/users?channel=eq.${channel}`,
+      {
+        headers: {
+          apikey: SUPABASE_KEY
+        }
+      }
+    );
+
+    const existing = await check.json();
+
+    if (existing.length) {
+      return res.json({ ok: false, message: "Channel exists" });
+    }
+
+    await fetch(`${SUPABASE_URL}/rest/v1/users`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`
+      },
+      body: JSON.stringify({
+        channel,
+        password,
+        approved: false
+      })
+    });
+
+    res.json({ ok: true });
+
+  } catch (e) {
+    res.json({ ok: false, message: "Server error" });
+  }
+});
+
+// ==========================
 app.listen(PORT, () => {
-  console.log("🚀 Admin Panel Running on port " + PORT);
+  console.log("🚀 Server Running on port " + PORT);
 });
