@@ -237,7 +237,6 @@ app.post("/user/register", async (req, res) => {
       return res.json({ ok: false, message: "Missing data" });
     }
 
-    // ✅ تجاهل المحذوفين
     const check = await fetch(
       `${SUPABASE_URL}/rest/v1/users?channel=eq.${channel}&is_deleted=eq.false`,
       {
@@ -253,7 +252,6 @@ app.post("/user/register", async (req, res) => {
       return res.json({ ok: false, message: "Channel exists" });
     }
 
-    // ✅ إعادة تسجيل حتى لو كان محذوف سابقًا
     await fetch(`${SUPABASE_URL}/rest/v1/users`, {
       method: "POST",
       headers: {
@@ -273,6 +271,45 @@ app.post("/user/register", async (req, res) => {
 
   } catch (e) {
     res.json({ ok: false, message: "Server error" });
+  }
+});
+
+// ==========================
+// 🔄 SYNC (FIX 🔥)
+// ==========================
+app.post("/sync", async (req, res) => {
+  try {
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/users?approved=eq.true&is_deleted=eq.false`,
+      {
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`
+        }
+      }
+    );
+
+    const data = await response.json();
+    const channels = data.map(u => u.channel);
+
+    res.json({
+      status: "active",
+      channels
+    });
+
+  } catch {
+    res.status(500).json({ status: "error", channels: [] });
+  }
+});
+
+// ==========================
+// 🔴 CHECK LIVE (FIX 🔥)
+// ==========================
+app.post("/check-live", async (req, res) => {
+  try {
+    res.json({ live: false });
+  } catch {
+    res.json({ live: false });
   }
 });
 
