@@ -1,4 +1,3 @@
-import fetch from "node-fetch";
 import express from "express";
 import cors from "cors";
 
@@ -13,7 +12,7 @@ const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const ADMIN_KEY = process.env.ADMIN_KEY || "2107";
 
 // =======================
-// REGISTER (FIXED 🔥)
+// REGISTER
 // =======================
 app.post("/user/register", async (req, res) => {
   try {
@@ -22,8 +21,6 @@ app.post("/user/register", async (req, res) => {
     if (!channel || !password) {
       return res.json({ ok: false, message: "Missing data" });
     }
-
-    console.log("🔥 Register:", channel);
 
     let existing = [];
 
@@ -34,68 +31,56 @@ app.post("/user/register", async (req, res) => {
 
       existing = await check.json();
     } catch (err) {
-      console.log("❌ Fetch error:", err);
       return res.json({ ok: false, message: "DB error" });
     }
 
-    // === EXIST ===
     if (existing.length > 0) {
       const user = existing[0];
 
+      // 🔥 إعادة تسجيل المحذوف
       if (user.is_deleted === true) {
-        try {
-          await fetch(`${SUPABASE_URL}?channel=eq.${channel}`, {
-            method: "PATCH",
-            headers: {
-              apikey: SUPABASE_KEY,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              password,
-              approved: false,
-              is_deleted: false
-            })
-          });
+        await fetch(`${SUPABASE_URL}?channel=eq.${channel}`, {
+          method: "PATCH",
+          headers: {
+            apikey: SUPABASE_KEY,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            password,
+            approved: false,
+            is_deleted: false
+          })
+        });
 
-          return res.json({ ok: true, message: "Re-registered" });
-        } catch (err) {
-          return res.json({ ok: false, message: "Update failed" });
-        }
+        return res.json({ ok: true, message: "Re-registered" });
       }
 
       return res.json({ ok: false, message: "Already exists" });
     }
 
-    // === NEW USER ===
-    try {
-      await fetch(SUPABASE_URL, {
-        method: "POST",
-        headers: {
-          apikey: SUPABASE_KEY,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          channel,
-          password,
-          approved: false,
-          is_deleted: false
-        })
-      });
+    await fetch(SUPABASE_URL, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        channel,
+        password,
+        approved: false,
+        is_deleted: false
+      })
+    });
 
-      return res.json({ ok: true });
-
-    } catch (err) {
-      return res.json({ ok: false, message: "Insert failed" });
-    }
+    return res.json({ ok: true });
 
   } catch (err) {
-    console.log("🔥 ERROR:", err);
     return res.json({ ok: false, message: "Server error" });
   }
 });
 
 // =======================
-// SYNC (FIXED)
+// SYNC
 // =======================
 app.post("/sync", async (req, res) => {
   try {
@@ -112,31 +97,110 @@ app.post("/sync", async (req, res) => {
     });
 
   } catch (err) {
-    console.log("❌ Sync error:", err);
     res.json({ status: "error", channels: [] });
   }
 });
 
 // =======================
-// CHECK LIVE (مهم للإكستنشن)
+// CHECK LIVE
 // =======================
 app.post("/check-live", async (req, res) => {
   try {
     const { channels } = req.body;
 
-    if (!channels || !Array.isArray(channels)) {
-      return res.json({ ok: false, live: [] });
-    }
-
-    // حالياً نرجعهم كما هم (تقدر تطور لاحقاً)
     res.json({
       ok: true,
-      live: channels
+      live: channels || []
     });
 
-  } catch (err) {
-    console.log("❌ check-live error:", err);
+  } catch {
     res.json({ ok: false, live: [] });
+  }
+});
+
+// =======================
+// 🔥 ADMIN: DELETE USER
+// =======================
+app.post("/admin/delete-user", async (req, res) => {
+  try {
+    const key = req.headers["x-admin-key"];
+    if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
+
+    const { id } = req.body;
+
+    await fetch(`${SUPABASE_URL}?id=eq.${id}`, {
+      method: "PATCH",
+      headers: {
+        apikey: SUPABASE_KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        approved: false,
+        is_deleted: true
+      })
+    });
+
+    res.json({ ok: true });
+
+  } catch {
+    res.json({ ok: false });
+  }
+});
+
+// =======================
+// 🔥 ADMIN: UPDATE (approve / reject)
+// =======================
+app.post("/admin/update", async (req, res) => {
+  try {
+    const key = req.headers["x-admin-key"];
+    if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
+
+    const { id, status } = req.body;
+
+    await fetch(`${SUPABASE_URL}?id=eq.${id}`, {
+      method: "PATCH",
+      headers: {
+        apikey: SUPABASE_KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        approved: status === "approved"
+      })
+    });
+
+    res.json({ ok: true });
+
+  } catch {
+    res.json({ ok: false });
+  }
+});
+
+// =======================
+// 🔥 ADMIN: BLOCK
+// =======================
+app.post("/admin/block", async (req, res) => {
+  try {
+    const key = req.headers["x-admin-key"];
+    if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
+
+    const { id } = req.body;
+
+    await fetch(`${SUPABASE_URL}?id=eq.${id}`, {
+      method: "PATCH",
+      headers: {
+        apikey: SUPABASE_KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        approved: false,
+        is_deleted: true
+      })
+    });
+
+    res.json({ ok: true });
+
+  } catch {
+    res.json({ ok: false });
   }
 });
 
