@@ -1,234 +1,19 @@
-require("dotenv").config();
-
-const express = require("express");
-const cors = require("cors");
-const path = require("path");
+import express from "express";
+import cors from "cors";
 
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 
-// static
-app.use(express.static(path.join(__dirname, "public")));
-
 const PORT = process.env.PORT || 3000;
-const ADMIN_KEY = process.env.ADMIN_KEY;
 
-// 🔥 Supabase config
-const SUPABASE_URL = "https://pdgglivspfctmzbjpqjm.supabase.co";
+const SUPABASE_URL = "https://pdgglivspfctmzbjpqjm.supabase.co/rest/v1/users";
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
+const ADMIN_KEY = process.env.ADMIN_KEY || "2107";
 
-// ==========================
-// 🔐 Admin حماية
-// ==========================
-function checkAdmin(req, res, next) {
-  const key = req.headers["x-admin-key"];
-
-  if (key !== ADMIN_KEY) {
-    return res.status(403).json({ error: "Unauthorized" });
-  }
-
-  next();
-}
-
-// ==========================
-// 🏠 الصفحة الرئيسية
-// ==========================
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
-
-// ==========================
-// 📥 جلب الطلبات (FIX)
-// ==========================
-app.get("/admin/requests", checkAdmin, async (req, res) => {
-  try {
-    const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?is_deleted=eq.false&order=created_at.desc`,
-      {
-        headers: {
-          apikey: SUPABASE_KEY,
-          Authorization: `Bearer ${SUPABASE_KEY}`
-        }
-      }
-    );
-
-    const data = await response.json();
-    res.json(data);
-
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// ==========================
-// 🆕 جلب جميع المستخدمين
-// ==========================
-app.get("/admin/all-users", checkAdmin, async (req, res) => {
-  try {
-    const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/users`,
-      {
-        headers: {
-          apikey: SUPABASE_KEY,
-          Authorization: `Bearer ${SUPABASE_KEY}`
-        }
-      }
-    );
-
-    const data = await response.json();
-    res.json(data);
-
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// ==========================
-// ✏️ تحديث الحالة
-// ==========================
-app.post("/admin/update", checkAdmin, async (req, res) => {
-  try {
-    const { id, status } = req.body;
-
-    if (!id || !status) {
-      return res.json({ ok: false });
-    }
-
-    if (status === "approved") {
-      await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: SUPABASE_KEY,
-          Authorization: `Bearer ${SUPABASE_KEY}`
-        },
-        body: JSON.stringify({ approved: true })
-      });
-
-    } else if (status === "rejected") {
-      await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${id}`, {
-        method: "DELETE",
-        headers: {
-          apikey: SUPABASE_KEY,
-          Authorization: `Bearer ${SUPABASE_KEY}`
-        }
-      });
-    }
-
-    res.json({ ok: true });
-
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// ==========================
-// 🚫 بلوك
-// ==========================
-app.post("/admin/block", checkAdmin, async (req, res) => {
-  try {
-    const { id } = req.body;
-
-    await fetch(`${SUPABASE_URL}/rest/v1/blacklist`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`
-      },
-      body: JSON.stringify({
-        id,
-        blockedAt: Date.now()
-      })
-    });
-
-    await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${id}`, {
-      method: "DELETE",
-      headers: {
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`
-      }
-    });
-
-    res.json({ ok: true });
-
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// ==========================
-// 🗑️ حذف مستخدم (UPDATED)
-// ==========================
-app.post("/admin/delete-user", checkAdmin, async (req, res) => {
-  try {
-    const { id, channel } = req.body;
-
-    if (!id || !channel) {
-      return res.json({ ok: false });
-    }
-
-    await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${id}`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`
-      },
-      body: JSON.stringify({
-        approved: false,
-        is_deleted: true
-      })
-    });
-
-    await fetch(`${SUPABASE_URL}/rest/v1/deleted_users`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`
-      },
-      body: JSON.stringify({
-        channel,
-        deleted_at: new Date().toISOString()
-      })
-    });
-
-    res.json({ ok: true });
-
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// ==========================
-// 📜 جلب المحذوفين
-// ==========================
-app.get("/admin/deleted", checkAdmin, async (req, res) => {
-  try {
-    const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/deleted_users`,
-      {
-        headers: {
-          apikey: SUPABASE_KEY,
-          Authorization: `Bearer ${SUPABASE_KEY}`
-        }
-      }
-    );
-
-    const data = await response.json();
-    res.json(data);
-
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// ==========================
-// 🔥 USER REGISTER (FIX 🔥)
-// ==========================
+// =======================
+// REGISTER (FIXED 🔥)
+// =======================
 app.post("/user/register", async (req, res) => {
   try {
     const { channel, password } = req.body;
@@ -237,59 +22,87 @@ app.post("/user/register", async (req, res) => {
       return res.json({ ok: false, message: "Missing data" });
     }
 
-    const check = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?channel=eq.${channel}&is_deleted=eq.false`,
-      {
-        headers: {
-          apikey: SUPABASE_KEY
-        }
-      }
-    );
+    console.log("🔥 Register:", channel);
 
-    const existing = await check.json();
+    let existing = [];
 
-    if (existing.length) {
-      return res.json({ ok: false, message: "Channel exists" });
+    try {
+      const check = await fetch(`${SUPABASE_URL}?channel=eq.${channel}`, {
+        headers: { apikey: SUPABASE_KEY }
+      });
+
+      existing = await check.json();
+    } catch (err) {
+      console.log("❌ Fetch error:", err);
+      return res.json({ ok: false, message: "DB error" });
     }
 
-    await fetch(`${SUPABASE_URL}/rest/v1/users`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`
-      },
-      body: JSON.stringify({
-        channel,
-        password,
-        approved: false,
-        is_deleted: false
-      })
-    });
+    // === EXIST ===
+    if (existing.length > 0) {
+      const user = existing[0];
 
-    res.json({ ok: true });
+      if (user.is_deleted === true) {
+        try {
+          await fetch(`${SUPABASE_URL}?channel=eq.${channel}`, {
+            method: "PATCH",
+            headers: {
+              apikey: SUPABASE_KEY,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              password,
+              approved: false,
+              is_deleted: false
+            })
+          });
 
-  } catch (e) {
-    res.json({ ok: false, message: "Server error" });
+          return res.json({ ok: true, message: "Re-registered" });
+        } catch (err) {
+          return res.json({ ok: false, message: "Update failed" });
+        }
+      }
+
+      return res.json({ ok: false, message: "Already exists" });
+    }
+
+    // === NEW USER ===
+    try {
+      await fetch(SUPABASE_URL, {
+        method: "POST",
+        headers: {
+          apikey: SUPABASE_KEY,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          channel,
+          password,
+          approved: false,
+          is_deleted: false
+        })
+      });
+
+      return res.json({ ok: true });
+
+    } catch (err) {
+      return res.json({ ok: false, message: "Insert failed" });
+    }
+
+  } catch (err) {
+    console.log("🔥 ERROR:", err);
+    return res.json({ ok: false, message: "Server error" });
   }
 });
 
-// ==========================
-// 🔄 SYNC (FIX 🔥)
-// ==========================
+// =======================
+// SYNC (FIXED)
+// =======================
 app.post("/sync", async (req, res) => {
   try {
-    const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?approved=eq.true&is_deleted=eq.false`,
-      {
-        headers: {
-          apikey: SUPABASE_KEY,
-          Authorization: `Bearer ${SUPABASE_KEY}`
-        }
-      }
-    );
+    const r = await fetch(`${SUPABASE_URL}?approved=eq.true&is_deleted=eq.false`, {
+      headers: { apikey: SUPABASE_KEY }
+    });
 
-    const data = await response.json();
+    const data = await r.json();
     const channels = data.map(u => u.channel);
 
     res.json({
@@ -297,23 +110,36 @@ app.post("/sync", async (req, res) => {
       channels
     });
 
-  } catch {
-    res.status(500).json({ status: "error", channels: [] });
+  } catch (err) {
+    console.log("❌ Sync error:", err);
+    res.json({ status: "error", channels: [] });
   }
 });
 
-// ==========================
-// 🔴 CHECK LIVE (FIX 🔥)
-// ==========================
+// =======================
+// CHECK LIVE (مهم للإكستنشن)
+// =======================
 app.post("/check-live", async (req, res) => {
   try {
-    res.json({ live: false });
-  } catch {
-    res.json({ live: false });
+    const { channels } = req.body;
+
+    if (!channels || !Array.isArray(channels)) {
+      return res.json({ ok: false, live: [] });
+    }
+
+    // حالياً نرجعهم كما هم (تقدر تطور لاحقاً)
+    res.json({
+      ok: true,
+      live: channels
+    });
+
+  } catch (err) {
+    console.log("❌ check-live error:", err);
+    res.json({ ok: false, live: [] });
   }
 });
 
-// ==========================
+// =======================
 app.listen(PORT, () => {
-  console.log("🚀 Server Running on port " + PORT);
+  console.log("🚀 Server running on port", PORT);
 });
