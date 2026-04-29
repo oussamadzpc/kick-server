@@ -227,7 +227,7 @@ app.get("/admin/deleted", checkAdmin, async (req, res) => {
 });
 
 // ==========================
-// 🔥 USER REGISTER
+// 🔥 USER REGISTER (FIX 🔥)
 // ==========================
 app.post("/user/register", async (req, res) => {
   try {
@@ -237,8 +237,9 @@ app.post("/user/register", async (req, res) => {
       return res.json({ ok: false, message: "Missing data" });
     }
 
+    // ✅ تجاهل المحذوفين
     const check = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?channel=eq.${channel}`,
+      `${SUPABASE_URL}/rest/v1/users?channel=eq.${channel}&is_deleted=eq.false`,
       {
         headers: {
           apikey: SUPABASE_KEY
@@ -252,6 +253,7 @@ app.post("/user/register", async (req, res) => {
       return res.json({ ok: false, message: "Channel exists" });
     }
 
+    // ✅ إعادة تسجيل حتى لو كان محذوف سابقًا
     await fetch(`${SUPABASE_URL}/rest/v1/users`, {
       method: "POST",
       headers: {
