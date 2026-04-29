@@ -158,6 +158,9 @@ td:first-child {
 
 <script>
 
+const SUPABASE_URL = "https://pdgglivspfctmzbjpqjm.supabase.co/rest/v1/users";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBkZ2dsaXZzcGZjdG16YmpwcWptIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NzMxMjMxNSwiZXhwIjoyMDkyODg4MzE1fQ.9jX9dbGuGqcSkyj_ZYkqunjXQTAcO5eWx27tqNiRdg0"; // ⚠️ حط المفتاح الصحيح
+
 const BASE_URL = "https://kick-server-4c5d.onrender.com";
 const ADMIN_KEY = "2107";
 
@@ -172,20 +175,22 @@ if (enteredKey !== ADMIN_KEY) {
 
 async function loadRequests() {
 
-  const res = await fetch(BASE_URL + "/admin/requests", {
-    headers: { "x-admin-key": ADMIN_KEY }
+  // ✅ جلب كل المستخدمين
+  const res = await fetch(SUPABASE_URL, {
+    headers: { "apikey": SUPABASE_KEY }
   });
 
   allData = await res.json();
 
-  try {
-    const deletedRes = await fetch(BASE_URL + "/admin/deleted", {
-      headers: { "x-admin-key": ADMIN_KEY }
-    });
-    deletedList = await deletedRes.json();
-  } catch {
-    deletedList = [];
-  }
+  // ✅ جلب المحذوفين
+  const deletedRes = await fetch(SUPABASE_URL + "?is_deleted=eq.true", {
+    headers: { "apikey": SUPABASE_KEY }
+  });
+
+  deletedList = await deletedRes.json();
+
+  // ✅ إزالة المحذوفين من القائمة الرئيسية
+  allData = allData.filter(u => u.is_deleted !== true);
 
   allData.sort((a,b)=> new Date(b.created_at)-new Date(a.created_at));
 
