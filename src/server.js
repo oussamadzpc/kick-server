@@ -7,7 +7,8 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-const SUPABASE_URL = "https://pdgglivspfctmzbjpqjm.supabase.co/rest/v1/users";
+// ✅ تم تعديل هذا فقط
+const SUPABASE_URL = "https://pdgglivspfctmzbjpqjm.supabase.co";
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const ADMIN_KEY = process.env.ADMIN_KEY || "2107";
 
@@ -25,7 +26,7 @@ app.post("/user/register", async (req, res) => {
     let existing = [];
 
     try {
-      const check = await fetch(`${SUPABASE_URL}?channel=eq.${channel}`, {
+      const check = await fetch(`${SUPABASE_URL}/rest/v1/users?channel=eq.${channel}`, {
         headers: { apikey: SUPABASE_KEY }
       });
 
@@ -37,9 +38,8 @@ app.post("/user/register", async (req, res) => {
     if (existing.length > 0) {
       const user = existing[0];
 
-      // 🔥 إعادة تسجيل المحذوف
       if (user.is_deleted === true) {
-        await fetch(`${SUPABASE_URL}?channel=eq.${channel}`, {
+        await fetch(`${SUPABASE_URL}/rest/v1/users?channel=eq.${channel}`, {
           method: "PATCH",
           headers: {
             apikey: SUPABASE_KEY,
@@ -58,7 +58,7 @@ app.post("/user/register", async (req, res) => {
       return res.json({ ok: false, message: "Already exists" });
     }
 
-    await fetch(SUPABASE_URL, {
+    await fetch(`${SUPABASE_URL}/rest/v1/users`, {
       method: "POST",
       headers: {
         apikey: SUPABASE_KEY,
@@ -84,7 +84,7 @@ app.post("/user/register", async (req, res) => {
 // =======================
 app.post("/sync", async (req, res) => {
   try {
-    const r = await fetch(`${SUPABASE_URL}?approved=eq.true&is_deleted=eq.false`, {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/users?approved=eq.true&is_deleted=eq.false`, {
       headers: { apikey: SUPABASE_KEY }
     });
 
@@ -128,7 +128,7 @@ app.post("/admin/delete-user", async (req, res) => {
 
     const { id } = req.body;
 
-    await fetch(`${SUPABASE_URL}?id=eq.${id}`, {
+    await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${id}`, {
       method: "PATCH",
       headers: {
         apikey: SUPABASE_KEY,
@@ -148,7 +148,7 @@ app.post("/admin/delete-user", async (req, res) => {
 });
 
 // =======================
-// 🔥 ADMIN: UPDATE (approve / reject)
+// 🔥 ADMIN: UPDATE
 // =======================
 app.post("/admin/update", async (req, res) => {
   try {
@@ -157,7 +157,7 @@ app.post("/admin/update", async (req, res) => {
 
     const { id, status } = req.body;
 
-    await fetch(`${SUPABASE_URL}?id=eq.${id}`, {
+    await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${id}`, {
       method: "PATCH",
       headers: {
         apikey: SUPABASE_KEY,
@@ -185,7 +185,7 @@ app.post("/admin/block", async (req, res) => {
 
     const { id } = req.body;
 
-    await fetch(`${SUPABASE_URL}?id=eq.${id}`, {
+    await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${id}`, {
       method: "PATCH",
       headers: {
         apikey: SUPABASE_KEY,
