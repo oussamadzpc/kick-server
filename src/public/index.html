@@ -3,45 +3,284 @@
 <head>
 <meta charset="UTF-8">
 <title>Admin Panel</title>
+
+<style>
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+h1 {
+  text-align: center;
+  padding: 20px;
+  margin: 0;
+  background: #020617;
+  border-bottom: 1px solid #1e293b;
+}
+
+.top-bar {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 15px;
+}
+
+input {
+  padding: 8px;
+  border-radius: 8px;
+  border: none;
+  width: 250px;
+}
+
+button {
+  border: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.load-btn { background: #3b82f6; color: white; }
+.delete-btn { background: #ef4444; color: white; }
+
+.container {
+  display: flex;
+  gap: 20px;
+  padding: 20px;
+}
+
+.table-box {
+  flex: 1;
+  background: #020617;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  padding: 10px;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.count {
+  font-size: 14px;
+  margin-bottom: 10px;
+  opacity: 0.8;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+th, td {
+  padding: 10px;
+  border-bottom: 1px solid #1e293b;
+  vertical-align: middle;
+}
+
+th {
+  position: sticky;
+  top: 0;
+  background: #020617;
+}
+
+th:first-child,
+td:first-child {
+  width: 40px;
+  text-align: center;
+}
+
+.status-approved { color: #22c55e; }
+.status-pending { color: #f59e0b; }
+
+.deleted-flag {
+  color: #facc15;
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+.actions button {
+  margin-right: 5px;
+}
+
+.actions button:nth-child(1) { background: #22c55e; color: white; }
+.actions button:nth-child(2) { background: #f59e0b; color: white; }
+.actions button:nth-child(3) { background: #ef4444; color: white; }
+
+</style>
+
 </head>
 <body>
 
 <h1>Admin Panel</h1>
 
-<button onclick="loadRequests()">Load Requests</button>
-<div id="requests"></div>
+<div class="top-bar">
+  <input type="text" id="search" placeholder="Search channel..." oninput="render()">
+  <button class="load-btn" onclick="loadRequests()">Load</button>
+  <button class="delete-btn" onclick="deleteSelected()">Delete Selected</button>
+</div>
+
+<div class="container">
+
+  <div class="table-box">
+    <h3>Pending</h3>
+    <div class="count" id="pendingCount">0</div>
+    <table>
+      <thead>
+        <tr>
+          <th><input type="checkbox" onclick="toggleAll(this)"></th>
+          <th>Channel</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="pending"></tbody>
+    </table>
+  </div>
+
+  <div class="table-box">
+    <h3>Approved</h3>
+    <div class="count" id="approvedCount">0</div>
+    <table>
+      <thead>
+        <tr>
+          <th><input type="checkbox" onclick="toggleAll(this)"></th>
+          <th>Channel</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="approved"></tbody>
+    </table>
+  </div>
+
+</div>
 
 <script>
 
-const BASE_URL = "https://kick-server-4c5d.onrender.com"; // ✅ التعديل الوحيد
-
+const BASE_URL = "https://kick-server-4c5d.onrender.com";
 const ADMIN_KEY = "2107";
 
+let allData = [];
+let deletedList = [];
+
+const enteredKey = prompt("Enter Admin Password:");
+if (enteredKey !== ADMIN_KEY) {
+  document.body.innerHTML = "<h1 style='text-align:center;margin-top:50px;'>Access Denied</h1>";
+  throw new Error("Unauthorized");
+}
+
 async function loadRequests() {
+
   const res = await fetch(BASE_URL + "/admin/requests", {
-    headers: {
-      "x-admin-key": ADMIN_KEY
+    headers: { "x-admin-key": ADMIN_KEY }
+  });
+
+  allData = await res.json();
+
+  try {
+    const deletedRes = await fetch(BASE_URL + "/admin/deleted", {
+      headers: { "x-admin-key": ADMIN_KEY }
+    });
+    deletedList = await deletedRes.json();
+  } catch {
+    deletedList = [];
+  }
+
+  allData.sort((a,b)=> new Date(b.created_at)-new Date(a.created_at));
+
+  render();
+}
+
+function render() {
+  const search = document.getElementById("search").value.toLowerCase();
+
+  const pendingBox = document.getElementById("pending");
+  const approvedBox = document.getElementById("approved");
+
+  let pendingCount = 0;
+  let approvedCount = 0;
+
+  pendingBox.innerHTML = "";
+  approvedBox.innerHTML = "";
+
+  allData.forEach(user => {
+
+    if (!user.channel.toLowerCase().includes(search)) return;
+
+    const isDeleted = deletedList.some(d => d.channel === user.channel);
+    const flag = isDeleted ? '<span class="deleted-flag">⚠</span>' : '';
+
+    const row = document.createElement("tr");
+    const isApproved = user.approved === true;
+
+    if (isApproved) {
+      approvedCount++;
+
+      row.innerHTML = `
+        <td><input type="checkbox" class="select" data-id="${user.id}" data-channel="${user.channel}"></td>
+        <td>${user.channel} ${flag}</td>
+        <td class="status-approved">Approved</td>
+      `;
+
+      approvedBox.appendChild(row);
+
+    } else {
+      pendingCount++;
+
+      row.innerHTML = `
+        <td><input type="checkbox" class="select" data-id="${user.id}" data-channel="${user.channel}"></td>
+        <td>${user.channel} ${flag}</td>
+        <td class="status-pending">Pending</td>
+        <td class="actions">
+          <button onclick="approve('${user.id}')">✔</button>
+          <button onclick="reject('${user.id}')">✖</button>
+          <button onclick="block('${user.id}')">⛔</button>
+        </td>
+      `;
+
+      pendingBox.appendChild(row);
     }
+
   });
 
-  const data = await res.json();
+  document.getElementById("pendingCount").textContent = "Total: " + pendingCount;
+  document.getElementById("approvedCount").textContent = "Total: " + approvedCount;
+}
 
-  const box = document.getElementById("requests");
-  box.innerHTML = "";
-
-  data.forEach(user => {
-    const div = document.createElement("div");
-
-    div.innerHTML = `
-      <b>${user.channel}</b>
-      <button onclick="approve('${user.id}')">Approve</button>
-      <button onclick="reject('${user.id}')">Reject</button>
-      <button onclick="block('${user.id}')">Block</button>
-      <hr>
-    `;
-
-    box.appendChild(div);
+function toggleAll(source) {
+  document.querySelectorAll(".select").forEach(cb => {
+    cb.checked = source.checked;
   });
+}
+
+async function deleteSelected() {
+
+  const selected = document.querySelectorAll(".select:checked");
+
+  if (selected.length === 0) {
+    alert("Select users first");
+    return;
+  }
+
+  if (!confirm("Are you sure you want to delete selected users?")) return;
+
+  for (let cb of selected) {
+    const id = cb.dataset.id;
+    const channel = cb.dataset.channel;
+
+    await fetch(BASE_URL + "/admin/delete-user", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-admin-key": ADMIN_KEY
+      },
+      body: JSON.stringify({ id, channel })
+    });
+  }
+
+  alert("Deleted successfully");
+  loadRequests();
 }
 
 async function approve(id) {
@@ -53,7 +292,6 @@ async function approve(id) {
     },
     body: JSON.stringify({ id, status: "approved" })
   });
-
   loadRequests();
 }
 
@@ -66,7 +304,6 @@ async function reject(id) {
     },
     body: JSON.stringify({ id, status: "rejected" })
   });
-
   loadRequests();
 }
 
@@ -79,9 +316,10 @@ async function block(id) {
     },
     body: JSON.stringify({ id })
   });
-
   loadRequests();
 }
+
+loadRequests();
 
 </script>
 
