@@ -7,10 +7,75 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-// ✅ تم تعديل هذا فقط
 const SUPABASE_URL = "https://pdgglivspfctmzbjpqjm.supabase.co";
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const ADMIN_KEY = process.env.ADMIN_KEY || "2107";
+
+// =======================
+// 🧠 CACHE
+// =======================
+let cachedChannels = [];
+let liveCache = {};
+
+// =======================
+// 🔄 FETCH CHANNELS
+// =======================
+async function refreshChannels() {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/users?approved=eq.true&is_deleted=eq.false`, {
+      headers: { apikey: SUPABASE_KEY }
+    });
+
+    const data = await r.json();
+    cachedChannels = data.map(u => u.channel);
+
+    console.log("✅ Channels:", cachedChannels.length);
+
+  } catch (err) {
+    console.log("❌ Channel fetch error");
+  }
+}
+
+// =======================
+// 🔥 LIVE LOOP
+// =======================
+async function refreshLive() {
+  if (!cachedChannels.length) return;
+
+  console.log("🔄 Checking live...");
+
+  for (const channel of cachedChannels) {
+    try {
+      const res = await fetch(`https://kick.com/api/v2/channels/${channel}`);
+      const text = await res.text();
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        liveCache[channel] = false;
+        continue;
+      }
+
+      const isLive = data?.livestream?.is_live === true;
+      liveCache[channel] = isLive;
+
+    } catch {
+      liveCache[channel] = false;
+    }
+  }
+
+  console.log("📡 Live updated");
+}
+
+// =======================
+// 🔁 LOOPS
+// =======================
+setInterval(refreshChannels, 30000);
+setInterval(refreshLive, 10000);
+
+refreshChannels();
+refreshLive();
 
 // =======================
 // REGISTER
@@ -83,43 +148,37 @@ app.post("/user/register", async (req, res) => {
 // SYNC
 // =======================
 app.get("/sync", async (req, res) => {
-  try {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/users?approved=eq.true&is_deleted=eq.false`, {
-      headers: { apikey: SUPABASE_KEY }
-    });
-
-    const data = await r.json();
-    const channels = data.map(u => u.channel);
-
-    res.json({
-      status: "active",
-      channels
-    });
-
-  } catch (err) {
-    res.json({ status: "error", channels: [] });
-  }
+  res.json({
+    status: "active",
+    channels: cachedChannels
+  });
 });
 
 // =======================
-// CHECK LIVE
+// 🔥 NEW STATUS
+// =======================
+app.get("/status", (req, res) => {
+  res.json(liveCache);
+});
+
+// =======================
+// CHECK LIVE (SAFE)
 // =======================
 app.post("/check-live", async (req, res) => {
   try {
-    const { channels } = req.body;
+    const { channel } = req.body;
 
-    res.json({
-      ok: true,
-      live: channels || []
+    return res.json({
+      live: liveCache[channel] || false
     });
 
   } catch {
-    res.json({ ok: false, live: [] });
+    res.json({ live: false });
   }
 });
 
 // =======================
-// 🔥 ADMIN: DELETE USER
+// ADMIN (unchanged)
 // =======================
 app.post("/admin/delete-user", async (req, res) => {
   try {
@@ -147,9 +206,6 @@ app.post("/admin/delete-user", async (req, res) => {
   }
 });
 
-// =======================
-// 🔥 ADMIN: UPDATE
-// =======================
 app.post("/admin/update", async (req, res) => {
   try {
     const key = req.headers["x-admin-key"];
@@ -175,9 +231,6 @@ app.post("/admin/update", async (req, res) => {
   }
 });
 
-// =======================
-// 🔥 ADMIN: BLOCK
-// =======================
 app.post("/admin/block", async (req, res) => {
   try {
     const key = req.headers["x-admin-key"];
