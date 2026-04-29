@@ -82,7 +82,7 @@ app.post("/user/register", async (req, res) => {
 // =======================
 // SYNC
 // =======================
-app.post("/sync", async (req, res) => {
+app.get("/sync", async (req, res) => {
   try {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/users?approved=eq.true&is_deleted=eq.false`, {
       headers: { apikey: SUPABASE_KEY }
