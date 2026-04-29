@@ -40,12 +40,12 @@ app.get("/", (req, res) => {
 });
 
 // ==========================
-// 📥 جلب الطلبات (🔥 تم التعديل هنا)
+// 📥 جلب الطلبات (FIX)
 // ==========================
 app.get("/admin/requests", checkAdmin, async (req, res) => {
   try {
     const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?order=created_at.desc`,
+      `${SUPABASE_URL}/rest/v1/users?is_deleted=eq.false&order=created_at.desc`,
       {
         headers: {
           apikey: SUPABASE_KEY,
@@ -160,6 +160,73 @@ app.post("/admin/block", checkAdmin, async (req, res) => {
 });
 
 // ==========================
+// 🗑️ حذف مستخدم (UPDATED)
+// ==========================
+app.post("/admin/delete-user", checkAdmin, async (req, res) => {
+  try {
+    const { id, channel } = req.body;
+
+    if (!id || !channel) {
+      return res.json({ ok: false });
+    }
+
+    await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`
+      },
+      body: JSON.stringify({
+        approved: false,
+        is_deleted: true
+      })
+    });
+
+    await fetch(`${SUPABASE_URL}/rest/v1/deleted_users`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`
+      },
+      body: JSON.stringify({
+        channel,
+        deleted_at: new Date().toISOString()
+      })
+    });
+
+    res.json({ ok: true });
+
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ==========================
+// 📜 جلب المحذوفين
+// ==========================
+app.get("/admin/deleted", checkAdmin, async (req, res) => {
+  try {
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/deleted_users`,
+      {
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`
+        }
+      }
+    );
+
+    const data = await response.json();
+    res.json(data);
+
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ==========================
 // 🔥 USER REGISTER
 // ==========================
 app.post("/user/register", async (req, res) => {
@@ -195,7 +262,8 @@ app.post("/user/register", async (req, res) => {
       body: JSON.stringify({
         channel,
         password,
-        approved: false
+        approved: false,
+        is_deleted: false
       })
     });
 
