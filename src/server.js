@@ -33,19 +33,19 @@ function checkAdmin(req, res, next) {
 }
 
 // ==========================
-// 🏠 الصفحة الرئيسية (🔥 التعديل هنا فقط)
+// 🏠 الصفحة الرئيسية
 // ==========================
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 // ==========================
-// 📥 جلب الطلبات (users غير المقبولين)
+// 📥 جلب الطلبات (🔥 تم التعديل هنا)
 // ==========================
 app.get("/admin/requests", checkAdmin, async (req, res) => {
   try {
     const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?approved=eq.false`,
+      `${SUPABASE_URL}/rest/v1/users?order=created_at.desc`,
       {
         headers: {
           apikey: SUPABASE_KEY,
@@ -203,37 +203,6 @@ app.post("/user/register", async (req, res) => {
 
   } catch (e) {
     res.json({ ok: false, message: "Server error" });
-  }
-});
-
-// ==========================
-// 🔐 حفظ سؤال الأمان
-// ==========================
-app.post("/user/security", async (req, res) => {
-  try {
-    const { channel, question, answer } = req.body;
-
-    if (!channel || !question || !answer) {
-      return res.json({ ok: false });
-    }
-
-    await fetch(`${SUPABASE_URL}/rest/v1/users?channel=eq.${channel}`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`
-      },
-      body: JSON.stringify({
-        security_question: question,
-        security_answer: answer
-      })
-    });
-
-    res.json({ ok: true });
-
-  } catch (e) {
-    res.json({ ok: false });
   }
 });
 
