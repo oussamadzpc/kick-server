@@ -17,8 +17,7 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 // =======================
 let cachedChannels = [];
 let liveCache = {};
-let commentPool = {};
-let channelContext = {}; // 🔥 NEW
+let commentPool = {}; 
 
 // =======================
 // ⚙️ CONFIG
@@ -28,38 +27,37 @@ const REFILL_THRESHOLD = 10;
 const AI_COOLDOWN = 10000;
 
 // =======================
-// 📥 CONTEXT ENDPOINT
+// 🧠 SAFE PARSER
 // =======================
-app.post("/context", (req, res) => {
+function safeParseComments(text) {
   try {
-    const { channel, title, chatSample } = req.body;
+    const parsed = JSON.parse(text);
 
-    if (!channel) return res.json({ ok: false });
+    if (!Array.isArray(parsed)) return [];
 
-    channelContext[channel] = {
-      title: title || "",
-      chatSample: chatSample || [],
-      updatedAt: Date.now()
-    };
+    return parsed
+      .map(x => x.text)
+      .filter(t =>
+        typeof t === "string" &&
+        t.length > 1 &&
+        t.length < 80 &&
+        !t.toLowerCase().includes("you forgot") &&
+        !t.toLowerCase().includes("please provide")
+      );
 
-    return res.json({ ok: true });
   } catch {
-    return res.json({ ok: false });
+    return [];
   }
-});
+}
 
 // =======================
-// 🔥 AI GENERATOR (SMART)
+// 🔥 AI GENERATOR (FIXED)
 // =======================
 async function generateComments(channel) {
   try {
     if (!GROQ_API_KEY) {
       return ["nice 🔥","wow 😂","gg","clean"];
     }
-
-    const ctx = channelContext[channel] || {};
-    const title = ctx.title || "unknown stream";
-    const chat = (ctx.chatSample || []).slice(0, 10).join("\n");
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -73,64 +71,49 @@ async function generateComments(channel) {
           {
             role: "system",
             content: `
-You are a real Kick viewer.
+Return ONLY valid JSON array.
 
-Analyze:
-- Stream title
-- Chat messages
-
-Detect:
-- Language (English, Arabic, French, Spanish, mixed, Franco-Arab, etc.)
-- Tone (hype, chill, funny)
-
-Generate 25 messages with variety:
-
-Types:
-- Normal chat
-- Short reactions
-- Emojis only
-- Mention channel name sometimes
-- Motivational messages sometimes
-- Kick commands sometimes (!points, !shop)
+Example:
+[
+  {"text":"nice play 🔥"},
+  {"text":"gg"},
+  {"text":"!points"}
+]
 
 Rules:
-- Max 6 words
-- Human-like
-- No repetition
-- Match detected language
+- No explanation
+- No text outside JSON
+- Max 6 words per message
+- 25 messages
 `
           },
           {
             role: "user",
-            content: `
-Channel: ${channel}
-Title: ${title}
-
-Chat:
-${chat}
-`
+            content: `Channel: ${channel}`
           }
         ],
-        temperature: 1.4,
-        max_tokens: 300
+        temperature: 1.2,
+        max_tokens: 400
       })
     });
 
     const data = await response.json();
-
     const text = data?.choices?.[0]?.message?.content || "";
 
-    const lines = [...new Set(
-      text
-        .split("\n")
-        .map(l => l.trim())
-        .filter(l => l.length > 1)
-    )];
+    const parsed = safeParseComments(text);
 
-    return lines.length ? lines : ["🔥🔥🔥","nice","gg"];
+    if (parsed.length > 0) {
+      return parsed;
+    }
+
+    return [
+      "nice 🔥","gg","wow","clean","lol 😂",
+      "crazy play","no way","insane","🔥🔥🔥",
+      "!points","!shop"
+    ];
 
   } catch {
-    return ["nice 🔥","gg","lol"];
+    return ["nice 🔥","gg","lol 😂"];
   }
 }
 
@@ -352,7 +335,7 @@ app.post("/check-live", async (req, res) => {
 });
 
 // =======================
-// ADMIN (UNCHANGED)
+// ADMIN (FULL RESTORED)
 // =======================
 app.post("/admin/delete-user", async (req, res) => {
   try {
