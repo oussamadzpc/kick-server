@@ -17,17 +17,15 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 // =======================
 let cachedChannels = [];
 let liveCache = {};
+let commentPool = {}; // 🔥 NEW
 
 // =======================
-// 🔥 AI COMMENT (NEW - SAFE)
+// 🔥 AI GENERATOR
 // =======================
-app.post("/ai-comment", async (req, res) => {
+async function generateComments(channel) {
   try {
-    const { channel } = req.body || {};
-
-    // fallback إذا ما في مفتاح
     if (!GROQ_API_KEY) {
-      return res.json({ comment: "nice 🔥" });
+      return ["nice 🔥","wow 😂","gg","clean"];
     }
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -41,27 +39,54 @@ app.post("/ai-comment", async (req, res) => {
         messages: [
           {
             role: "system",
-            content: "Write a short casual Kick chat message (max 6 words). Use slang, vary tone, sometimes emoji. Avoid repetition."
+            content: "Generate 20 short Kick chat messages. Max 6 words. Slang, varied, natural. No numbering."
           },
           {
             role: "user",
-            content: `Channel: ${channel || "general"}`
+            content: `Channel: ${channel}`
           }
         ],
         temperature: 1.3,
-        max_tokens: 20
+        max_tokens: 200
       })
     });
 
     const data = await response.json();
 
-    let text = data?.choices?.[0]?.message?.content?.trim();
+    const text = data?.choices?.[0]?.message?.content || "";
 
-    if (!text || text.length < 2) {
-      text = "crazy 🔥";
+    const lines = text
+      .split("\n")
+      .map(l => l.trim())
+      .filter(l => l.length > 2);
+
+    return lines.length ? lines : ["fire 🔥","crazy","wow"];
+
+  } catch {
+    return ["nice 🔥","gg","lol"];
+  }
+}
+
+// =======================
+// 🔥 NEW ENDPOINT
+// =======================
+app.get("/get-comment", async (req, res) => {
+  try {
+    const channel = req.query.channel || "general";
+
+    if (!commentPool[channel]) {
+      commentPool[channel] = await generateComments(channel);
     }
 
-    return res.json({ comment: text });
+    if (commentPool[channel].length < 5) {
+      generateComments(channel).then(newOnes => {
+        commentPool[channel].push(...newOnes);
+      });
+    }
+
+    const comment = commentPool[channel].shift() || "nice 🔥";
+
+    return res.json({ comment });
 
   } catch {
     return res.json({ comment: "wow 😂" });
@@ -229,7 +254,7 @@ app.post("/check-live", async (req, res) => {
 });
 
 // =======================
-// ADMIN (unchanged)
+// ADMIN (UNCHANGED)
 // =======================
 app.post("/admin/delete-user", async (req, res) => {
   try {
