@@ -17,7 +17,14 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 // =======================
 let cachedChannels = [];
 let liveCache = {};
-let commentPool = {}; // 🔥 NEW
+let commentPool = {}; 
+
+// =======================
+// ⚙️ CONFIG
+// =======================
+const POOL_SIZE = 30;
+const REFILL_THRESHOLD = 10;
+const AI_COOLDOWN = 10000; // 10s
 
 // =======================
 // 🔥 AI GENERATOR
@@ -39,15 +46,15 @@ async function generateComments(channel) {
         messages: [
           {
             role: "system",
-            content: "Generate 20 short Kick chat messages. Max 6 words. Slang, varied, natural. No numbering."
+            content: "Generate 25 short Kick chat messages. Max 6 words. Slang, varied, natural. No numbering. Avoid repetition."
           },
           {
             role: "user",
             content: `Channel: ${channel}`
           }
         ],
-        temperature: 1.3,
-        max_tokens: 200
+        temperature: 1.4,
+        max_tokens: 250
       })
     });
 
@@ -55,10 +62,12 @@ async function generateComments(channel) {
 
     const text = data?.choices?.[0]?.message?.content || "";
 
-    const lines = text
-      .split("\n")
-      .map(l => l.trim())
-      .filter(l => l.length > 2);
+    const lines = [...new Set(
+      text
+        .split("\n")
+        .map(l => l.trim())
+        .filter(l => l.length > 2)
+    )];
 
     return lines.length ? lines : ["fire 🔥","crazy","wow"];
 
@@ -68,23 +77,57 @@ async function generateComments(channel) {
 }
 
 // =======================
-// 🔥 NEW ENDPOINT
+// 🧠 POOL MANAGER
+// =======================
+async function refillPool(channel) {
+  if (!commentPool[channel]) {
+    commentPool[channel] = {
+      queue: [],
+      lastFetch: 0
+    };
+  }
+
+  const pool = commentPool[channel];
+
+  // ⛔ منع spam
+  if (Date.now() - pool.lastFetch < AI_COOLDOWN) return;
+
+  pool.lastFetch = Date.now();
+
+  const newComments = await generateComments(channel);
+
+  pool.queue.push(...newComments);
+
+  // ✂️ limit size
+  if (pool.queue.length > POOL_SIZE) {
+    pool.queue = pool.queue.slice(0, POOL_SIZE);
+  }
+}
+
+// =======================
+// 🔥 ENDPOINT
 // =======================
 app.get("/get-comment", async (req, res) => {
   try {
     const channel = req.query.channel || "general";
 
     if (!commentPool[channel]) {
-      commentPool[channel] = await generateComments(channel);
+      commentPool[channel] = {
+        queue: [],
+        lastFetch: 0
+      };
+
+      await refillPool(channel); // ⚡ أول تحميل
     }
 
-    if (commentPool[channel].length < 5) {
-      generateComments(channel).then(newOnes => {
-        commentPool[channel].push(...newOnes);
-      });
+    const pool = commentPool[channel];
+
+    // 🔄 refill background
+    if (pool.queue.length < REFILL_THRESHOLD) {
+      refillPool(channel);
     }
 
-    const comment = commentPool[channel].shift() || "nice 🔥";
+    const comment = pool.queue.shift() || "nice 🔥";
 
     return res.json({ comment });
 
