@@ -17,23 +17,49 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 // =======================
 let cachedChannels = [];
 let liveCache = {};
-let commentPool = {}; 
+let commentPool = {};
+let channelContext = {}; // 🔥 NEW
 
 // =======================
 // ⚙️ CONFIG
 // =======================
 const POOL_SIZE = 30;
 const REFILL_THRESHOLD = 10;
-const AI_COOLDOWN = 10000; // 10s
+const AI_COOLDOWN = 10000;
 
 // =======================
-// 🔥 AI GENERATOR
+// 📥 CONTEXT ENDPOINT
+// =======================
+app.post("/context", (req, res) => {
+  try {
+    const { channel, title, chatSample } = req.body;
+
+    if (!channel) return res.json({ ok: false });
+
+    channelContext[channel] = {
+      title: title || "",
+      chatSample: chatSample || [],
+      updatedAt: Date.now()
+    };
+
+    return res.json({ ok: true });
+  } catch {
+    return res.json({ ok: false });
+  }
+});
+
+// =======================
+// 🔥 AI GENERATOR (SMART)
 // =======================
 async function generateComments(channel) {
   try {
     if (!GROQ_API_KEY) {
       return ["nice 🔥","wow 😂","gg","clean"];
     }
+
+    const ctx = channelContext[channel] || {};
+    const title = ctx.title || "unknown stream";
+    const chat = (ctx.chatSample || []).slice(0, 10).join("\n");
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -46,15 +72,47 @@ async function generateComments(channel) {
         messages: [
           {
             role: "system",
-            content: "Generate 25 short Kick chat messages. Max 6 words. Slang, varied, natural. No numbering. Avoid repetition."
+            content: `
+You are a real Kick viewer.
+
+Analyze:
+- Stream title
+- Chat messages
+
+Detect:
+- Language (English, Arabic, French, Spanish, mixed, Franco-Arab, etc.)
+- Tone (hype, chill, funny)
+
+Generate 25 messages with variety:
+
+Types:
+- Normal chat
+- Short reactions
+- Emojis only
+- Mention channel name sometimes
+- Motivational messages sometimes
+- Kick commands sometimes (!points, !shop)
+
+Rules:
+- Max 6 words
+- Human-like
+- No repetition
+- Match detected language
+`
           },
           {
             role: "user",
-            content: `Channel: ${channel}`
+            content: `
+Channel: ${channel}
+Title: ${title}
+
+Chat:
+${chat}
+`
           }
         ],
         temperature: 1.4,
-        max_tokens: 250
+        max_tokens: 300
       })
     });
 
@@ -66,10 +124,10 @@ async function generateComments(channel) {
       text
         .split("\n")
         .map(l => l.trim())
-        .filter(l => l.length > 2)
+        .filter(l => l.length > 1)
     )];
 
-    return lines.length ? lines : ["fire 🔥","crazy","wow"];
+    return lines.length ? lines : ["🔥🔥🔥","nice","gg"];
 
   } catch {
     return ["nice 🔥","gg","lol"];
@@ -89,7 +147,6 @@ async function refillPool(channel) {
 
   const pool = commentPool[channel];
 
-  // ⛔ منع spam
   if (Date.now() - pool.lastFetch < AI_COOLDOWN) return;
 
   pool.lastFetch = Date.now();
@@ -98,7 +155,6 @@ async function refillPool(channel) {
 
   pool.queue.push(...newComments);
 
-  // ✂️ limit size
   if (pool.queue.length > POOL_SIZE) {
     pool.queue = pool.queue.slice(0, POOL_SIZE);
   }
@@ -117,12 +173,11 @@ app.get("/get-comment", async (req, res) => {
         lastFetch: 0
       };
 
-      await refillPool(channel); // ⚡ أول تحميل
+      await refillPool(channel);
     }
 
     const pool = commentPool[channel];
 
-    // 🔄 refill background
     if (pool.queue.length < REFILL_THRESHOLD) {
       refillPool(channel);
     }
@@ -150,7 +205,7 @@ async function refreshChannels() {
 
     console.log("✅ Channels:", cachedChannels.length);
 
-  } catch (err) {
+  } catch {
     console.log("❌ Channel fetch error");
   }
 }
@@ -215,7 +270,7 @@ app.post("/user/register", async (req, res) => {
       });
 
       existing = await check.json();
-    } catch (err) {
+    } catch {
       return res.json({ ok: false, message: "DB error" });
     }
 
@@ -258,7 +313,7 @@ app.post("/user/register", async (req, res) => {
 
     return res.json({ ok: true });
 
-  } catch (err) {
+  } catch {
     return res.json({ ok: false, message: "Server error" });
   }
 });
