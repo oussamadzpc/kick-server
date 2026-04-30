@@ -10,12 +10,63 @@ const PORT = process.env.PORT || 3000;
 const SUPABASE_URL = "https://pdgglivspfctmzbjpqjm.supabase.co";
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const ADMIN_KEY = process.env.ADMIN_KEY || "2107";
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
 // =======================
 // 🧠 CACHE
 // =======================
 let cachedChannels = [];
 let liveCache = {};
+
+// =======================
+// 🔥 AI COMMENT (NEW - SAFE)
+// =======================
+app.post("/ai-comment", async (req, res) => {
+  try {
+    const { channel } = req.body || {};
+
+    // fallback إذا ما في مفتاح
+    if (!GROQ_API_KEY) {
+      return res.json({ comment: "nice 🔥" });
+    }
+
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${GROQ_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant",
+        messages: [
+          {
+            role: "system",
+            content: "Write a short casual Kick chat message (max 6 words). Use slang, vary tone, sometimes emoji. Avoid repetition."
+          },
+          {
+            role: "user",
+            content: `Channel: ${channel || "general"}`
+          }
+        ],
+        temperature: 1.3,
+        max_tokens: 20
+      })
+    });
+
+    const data = await response.json();
+
+    let text = data?.choices?.[0]?.message?.content?.trim();
+
+    if (!text || text.length < 2) {
+      text = "crazy 🔥";
+    }
+
+    return res.json({ comment: text });
+
+  } catch {
+    return res.json({ comment: "wow 😂" });
+  }
+});
 
 // =======================
 // 🔄 FETCH CHANNELS
@@ -155,14 +206,14 @@ app.get("/sync", async (req, res) => {
 });
 
 // =======================
-// 🔥 NEW STATUS
+// STATUS
 // =======================
 app.get("/status", (req, res) => {
   res.json(liveCache);
 });
 
 // =======================
-// CHECK LIVE (SAFE)
+// CHECK LIVE
 // =======================
 app.post("/check-live", async (req, res) => {
   try {
