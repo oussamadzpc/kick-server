@@ -435,3 +435,42 @@ app.post("/admin/stop-verification", (req, res) => {
 app.listen(PORT, () => {
   console.log("🚀 Server running on port", PORT);
 });
+app.post("/admin/update", async (req, res) => {
+  const key = req.headers["x-admin-key"];
+  if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
+
+  try {
+    const { channel } = req.body;
+
+    if (!channel) {
+      return res.json({ ok: false });
+    }
+
+    const findRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/users?channel=eq.${encodeURIComponent(channel)}`,
+      { headers: getHeaders() }
+    );
+
+    const users = await findRes.json();
+
+    if (!users.length) {
+      return res.json({ ok: false });
+    }
+
+    const userId = users[0].id;
+
+    await fetch(
+      `${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`,
+      {
+        method: "PATCH",
+        headers: getHeaders(),
+        body: JSON.stringify({ approved: true })
+      }
+    );
+
+    return res.json({ ok: true });
+
+  } catch {
+    return res.json({ ok: false });
+  }
+});
