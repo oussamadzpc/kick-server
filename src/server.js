@@ -309,7 +309,7 @@ app.post("/user/register", async (req, res) => {
 });
 
 // =======================
-// ✅ FIXED APPROVE (100%)
+// ✅ FIXED APPROVE (FINAL)
 app.post("/admin/approve-user", async (req, res) => {
   const key = req.headers["x-admin-key"];
   if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
@@ -321,24 +321,23 @@ app.post("/admin/approve-user", async (req, res) => {
       return res.json({ ok: false, message: "Missing channel" });
     }
 
-    // 1️⃣ نجيب اليوزر
-    const findRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?channel=eq.${encodeURIComponent(channel)}`,
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/users?is_deleted=eq.false`,
       { headers: getHeaders() }
     );
 
-    const users = await findRes.json();
+    const users = await r.json();
 
-    if (!users.length) {
-      console.log("❌ User not found:", channel);
+    const user = users.find(
+      u => u.channel && u.channel.trim().toLowerCase() === channel.trim().toLowerCase()
+    );
+
+    if (!user) {
       return res.json({ ok: false, message: "User not found" });
     }
 
-    const userId = users[0].id;
-
-    // 2️⃣ نحدث باستخدام ID
-    const updateRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`,
+    await fetch(
+      `${SUPABASE_URL}/rest/v1/users?id=eq.${user.id}`,
       {
         method: "PATCH",
         headers: getHeaders(),
@@ -346,15 +345,9 @@ app.post("/admin/approve-user", async (req, res) => {
       }
     );
 
-    const text = await updateRes.text();
-
-    console.log("🧪 UPDATE RESPONSE:", text);
-    console.log("🧪 STATUS:", updateRes.status);
-
     return res.json({ ok: true });
 
-  } catch (err) {
-    console.log("❌ Approve error:", err.message);
+  } catch {
     return res.json({ ok: false });
   }
 });
@@ -435,6 +428,9 @@ app.post("/admin/stop-verification", (req, res) => {
 app.listen(PORT, () => {
   console.log("🚀 Server running on port", PORT);
 });
+
+// =======================
+// ✅ FIXED ADMIN UPDATE
 app.post("/admin/update", async (req, res) => {
   const key = req.headers["x-admin-key"];
   if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
@@ -446,75 +442,27 @@ app.post("/admin/update", async (req, res) => {
       return res.json({ ok: false });
     }
 
-    const findRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?channel=eq.${encodeURIComponent(channel)}`,
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/users?is_deleted=eq.false`,
       { headers: getHeaders() }
     );
 
-    const users = await findRes.json();
+    const users = await r.json();
 
-    if (!users.length) {
+    const user = users.find(
+      u => u.channel && u.channel.trim().toLowerCase() === channel.trim().toLowerCase()
+    );
+
+    if (!user) {
       return res.json({ ok: false });
     }
 
-    const userId = users[0].id;
-
     await fetch(
-      `${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`,
+      `${SUPABASE_URL}/rest/v1/users?id=eq.${user.id}`,
       {
         method: "PATCH",
         headers: getHeaders(),
         body: JSON.stringify({ approved: true })
-      }
-    );
-
-    return res.json({ ok: true });
-
-  } catch {
-    return res.json({ ok: false });
-  }
-});
-app.get("/debug/users", async (req, res) => {
-  try {
-    const r = await fetch(
-      `${SUPABASE_URL}/rest/v1/users`,
-      { headers: getHeaders() }
-    );
-
-    const data = await r.json();
-
-    console.log("🧪 ALL USERS:", data);
-
-    res.json(data);
-  } catch (err) {
-    res.json({ error: err.message });
-  }
-});
-app.post("/admin/block", async (req, res) => {
-  const key = req.headers["x-admin-key"];
-  if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
-
-  try {
-    const { channel } = req.body;
-
-    if (!channel) return res.json({ ok: false });
-
-    const findRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?channel=eq.${encodeURIComponent(channel.trim())}`,
-      { headers: getHeaders() }
-    );
-
-    const users = await findRes.json();
-    if (!users.length) return res.json({ ok: false });
-
-    const userId = users[0].id;
-
-    await fetch(
-      `${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`,
-      {
-        method: "PATCH",
-        headers: getHeaders(),
-        body: JSON.stringify({ is_deleted: true })
       }
     );
 
