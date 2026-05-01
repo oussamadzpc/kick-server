@@ -13,12 +13,22 @@ const ADMIN_KEY = process.env.ADMIN_KEY || "2107";
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
 // =======================
+// 🔥 NEW SYSTEMS
+// =======================
+let vipChannels = new Set();
+
+let verificationMode = {
+  active: false,
+  endTime: 0
+};
+
+// =======================
 // 🧠 CACHE
 // =======================
 let cachedChannels = [];
 let liveCache = {};
 let commentPool = {};
-let channelContext = {}; // 🔥 NEW
+let channelContext = {};
 
 // =======================
 const POOL_SIZE = 30;
@@ -57,7 +67,7 @@ function fallbackComments() {
 }
 
 // =======================
-// 🔥 AI GENERATOR (SMART)
+// 🔥 AI GENERATOR
 // =======================
 async function generateComments(channel) {
   try {
@@ -74,31 +84,16 @@ async function generateComments(channel) {
     const prompt = `
 You are a real viewer in a Kick live chat.
 
-You DO NOT explain.
-You DO NOT answer anyone.
-You DO NOT act like an assistant.
+You ONLY write short chat messages.
 
-You ONLY write short chat messages like real users.
+Channel: ${channel}
+Title: ${title}
 
-Channel name: ${channel}
-Stream title: ${title}
-
-Chat style examples:
+Examples:
 ${chatExamples}
 
-Instructions:
-- Match SAME language and tone
-- Some messages include channel name
-- Some messages only emojis
-- Some include !points or !shop
-- Max 6 words
-- Natural human style
-- No repetition
-
-Return ONLY JSON array:
-[
- {"text":"..."}
-]
+Return JSON:
+[{"text":"..."}]
 `;
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -118,18 +113,11 @@ Return ONLY JSON array:
     const data = await response.json();
     const text = data?.choices?.[0]?.message?.content || "";
 
-    // 🔒 JSON LOCK
     const isJSON = text.trim().startsWith("[") && text.trim().endsWith("]");
-    if (!isJSON) {
-      console.log("🚫 Non JSON:", text);
-      return fallbackComments();
-    }
+    if (!isJSON) return fallbackComments();
 
     const parsed = safeParseComments(text);
-
-    if (parsed.length > 0) return parsed;
-
-    return fallbackComments();
+    return parsed.length ? parsed : fallbackComments();
 
   } catch {
     return fallbackComments();
@@ -338,13 +326,31 @@ app.post("/user/register", async (req, res) => {
 });
 
 // =======================
+// 🔥 SYNC (UPDATED)
+// =======================
 app.get("/sync", async (req, res) => {
-  res.json({
+
+  // verification active
+  if (verificationMode.active && Date.now() < verificationMode.endTime) {
+    return res.json({
+      status: "verification",
+      channels: [...vipChannels]
+    });
+  }
+
+  // auto disable
+  if (verificationMode.active && Date.now() >= verificationMode.endTime) {
+    verificationMode.active = false;
+  }
+
+  return res.json({
     status: "active",
-    channels: cachedChannels
+    channels: cachedChannels,
+    vip: [...vipChannels]
   });
 });
 
+// =======================
 app.get("/status", (req, res) => {
   res.json(liveCache);
 });
@@ -363,83 +369,37 @@ app.post("/check-live", async (req, res) => {
 });
 
 // =======================
-// ADMIN
+// 🔥 ADMIN VIP
 // =======================
-app.post("/admin/delete-user", async (req, res) => {
-  try {
-    const key = req.headers["x-admin-key"];
-    if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
+app.post("/admin/set-vip", (req, res) => {
+  const key = req.headers["x-admin-key"];
+  if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
 
-    const { id } = req.body;
+  vipChannels = new Set(req.body.channels || []);
+  console.log("⭐ VIP:", [...vipChannels]);
 
-    await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${id}`, {
-      method: "PATCH",
-      headers: {
-        apikey: SUPABASE_KEY,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        approved: false,
-        is_deleted: true
-      })
-    });
-
-    res.json({ ok: true });
-
-  } catch {
-    res.json({ ok: false });
-  }
+  res.json({ ok: true });
 });
 
-app.post("/admin/update", async (req, res) => {
-  try {
-    const key = req.headers["x-admin-key"];
-    if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
-
-    const { id, status } = req.body;
-
-    await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${id}`, {
-      method: "PATCH",
-      headers: {
-        apikey: SUPABASE_KEY,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        approved: status === "approved"
-      })
-    });
-
-    res.json({ ok: true });
-
-  } catch {
-    res.json({ ok: false });
-  }
+app.get("/vip", (req, res) => {
+  res.json({ vip: [...vipChannels] });
 });
 
-app.post("/admin/block", async (req, res) => {
-  try {
-    const key = req.headers["x-admin-key"];
-    if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
+// =======================
+// 🔥 ADMIN VERIFICATION
+// =======================
+app.post("/admin/start-verification", (req, res) => {
+  const key = req.headers["x-admin-key"];
+  if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
 
-    const { id } = req.body;
+  const { duration } = req.body;
 
-    await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${id}`, {
-      method: "PATCH",
-      headers: {
-        apikey: SUPABASE_KEY,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        approved: false,
-        is_deleted: true
-      })
-    });
+  verificationMode.active = true;
+  verificationMode.endTime = Date.now() + duration;
 
-    res.json({ ok: true });
+  console.log("🧪 Verification ON");
 
-  } catch {
-    res.json({ ok: false });
-  }
+  res.json({ ok: true });
 });
 
 // =======================
