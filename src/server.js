@@ -16,7 +16,7 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 let vipChannels = new Set();
 
 let verificationMode = {
-  active: false
+active: false
 };
 
 // =======================
@@ -31,47 +31,52 @@ const AI_COOLDOWN = 10000;
 
 // =======================
 function safeParseComments(text) {
-  try {
-    const parsed = JSON.parse(text);
+try {
+const parsed = JSON.parse(text);
 
-    if (!Array.isArray(parsed)) return [];
+```
+if (!Array.isArray(parsed)) return [];
 
-    return parsed
-      .map(x => x.text)
-      .filter(t =>
-        typeof t === "string" &&
-        t.length > 1 &&
-        t.length < 80
-      );
+return parsed
+  .map(x => x.text)
+  .filter(t =>
+    typeof t === "string" &&
+    t.length > 1 &&
+    t.length < 80
+  );
+```
 
-  } catch {
-    return [];
-  }
+} catch {
+return [];
+}
 }
 
 // =======================
 function fallbackComments() {
-  return [
-    "nice 🔥","gg","wow","clean",
-    "lol 😂","crazy play","no way",
-    "insane","🔥🔥🔥","!points","!shop"
-  ];
+return [
+"nice 🔥","gg","wow","clean",
+"lol 😂","crazy play","no way",
+"insane","🔥🔥🔥","!points","!shop"
+];
 }
 
 // =======================
 async function generateComments(channel) {
-  try {
-    if (!GROQ_API_KEY) return fallbackComments();
+try {
+if (!GROQ_API_KEY) return fallbackComments();
 
-    const ctx = channelContext[channel] || {};
-    const title = ctx.title || "fun stream";
-    const chat = (ctx.chatSample || []).slice(0, 8);
+```
+const ctx = channelContext[channel] || {};
+const title = ctx.title || "fun stream";
+const chat = (ctx.chatSample || []).slice(0, 8);
 
-    const chatExamples = chat.length
-      ? chat.map(x => `- ${x}`).join("\n")
-      : "- gg\n- nice\n- lol 😂";
+const chatExamples = chat.length
+  ? chat.map(x => `- ${x}`).join("\n")
+  : "- gg\n- nice\n- lol 😂";
 
-    const prompt = `
+const prompt = `
+```
+
 You are a real viewer in a Kick live chat.
 
 You ONLY write short chat messages.
@@ -86,151 +91,162 @@ Return JSON:
 [{"text":"..."}]
 `;
 
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + GROQ_API_KEY
-      },
-      body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.9,
-        max_tokens: 400
-      })
-    });
+```
+const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer " + GROQ_API_KEY
+  },
+  body: JSON.stringify({
+    model: "llama-3.1-8b-instant",
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0.9,
+    max_tokens: 400
+  })
+});
 
-    const data = await response.json();
-    const text = data?.choices?.[0]?.message?.content || "";
+const data = await response.json();
+const text = data?.choices?.[0]?.message?.content || "";
 
-    const isJSON = text.trim().startsWith("[") && text.trim().endsWith("]");
-    if (!isJSON) return fallbackComments();
+const isJSON = text.trim().startsWith("[") && text.trim().endsWith("]");
+if (!isJSON) return fallbackComments();
 
-    const parsed = safeParseComments(text);
-    return parsed.length ? parsed : fallbackComments();
+const parsed = safeParseComments(text);
+return parsed.length ? parsed : fallbackComments();
+```
 
-  } catch {
-    return fallbackComments();
-  }
+} catch {
+return fallbackComments();
+}
 }
 
 // =======================
 async function refillPool(channel) {
-  if (!commentPool[channel]) {
-    commentPool[channel] = {
-      queue: [],
-      lastFetch: 0
-    };
-  }
+if (!commentPool[channel]) {
+commentPool[channel] = {
+queue: [],
+lastFetch: 0
+};
+}
 
-  const pool = commentPool[channel];
+const pool = commentPool[channel];
 
-  if (Date.now() - pool.lastFetch < AI_COOLDOWN) return;
+if (Date.now() - pool.lastFetch < AI_COOLDOWN) return;
 
-  pool.lastFetch = Date.now();
+pool.lastFetch = Date.now();
 
-  const newComments = await generateComments(channel);
+const newComments = await generateComments(channel);
 
-  pool.queue.push(...newComments);
+pool.queue.push(...newComments);
 
-  if (pool.queue.length > POOL_SIZE) {
-    pool.queue = pool.queue.slice(0, POOL_SIZE);
-  }
+if (pool.queue.length > POOL_SIZE) {
+pool.queue = pool.queue.slice(0, POOL_SIZE);
+}
 }
 
 // =======================
 app.post("/context", (req, res) => {
-  try {
-    const { channel, title, chatSample } = req.body;
+try {
+const { channel, title, chatSample } = req.body;
 
-    if (!channel) return res.json({ ok: false });
+```
+if (!channel) return res.json({ ok: false });
 
-    channelContext[channel] = {
-      title: title || "",
-      chatSample: Array.isArray(chatSample) ? chatSample : []
-    };
+channelContext[channel] = {
+  title: title || "",
+  chatSample: Array.isArray(chatSample) ? chatSample : []
+};
 
-    return res.json({ ok: true });
+return res.json({ ok: true });
+```
 
-  } catch {
-    return res.json({ ok: false });
-  }
+} catch {
+return res.json({ ok: false });
+}
 });
 
 // =======================
 app.get("/get-comment", async (req, res) => {
-  try {
-    const channel = req.query.channel || "general";
+try {
+const channel = req.query.channel || "general";
 
-    if (!commentPool[channel]) {
-      commentPool[channel] = {
-        queue: [],
-        lastFetch: 0
-      };
+```
+if (!commentPool[channel]) {
+  commentPool[channel] = {
+    queue: [],
+    lastFetch: 0
+  };
 
-      await refillPool(channel);
-    }
+  await refillPool(channel);
+}
 
-    const pool = commentPool[channel];
+const pool = commentPool[channel];
 
-    if (pool.queue.length < REFILL_THRESHOLD) {
-      refillPool(channel);
-    }
+if (pool.queue.length < REFILL_THRESHOLD) {
+  refillPool(channel);
+}
 
-    const comment = pool.queue.shift() || "nice 🔥";
+const comment = pool.queue.shift() || "nice 🔥";
 
-    return res.json({ comment });
+return res.json({ comment });
+```
 
-  } catch {
-    return res.json({ comment: "wow 😂" });
-  }
+} catch {
+return res.json({ comment: "wow 😂" });
+}
 });
 
 // =======================
 async function refreshChannels() {
-  try {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/users?approved=eq.true&is_deleted=eq.false`, {
-      headers: { apikey: SUPABASE_KEY }
-    });
+try {
+const r = await fetch(`${SUPABASE_URL}/rest/v1/users?approved=eq.true&is_deleted=eq.false`, {
+headers: { apikey: SUPABASE_KEY }
+});
 
-    const data = await r.json();
-    cachedChannels = data.map(u => u.channel);
+```
+const data = await r.json();
+cachedChannels = data.map(u => u.channel);
 
-    console.log("✅ Channels:", cachedChannels.length);
+console.log("✅ Channels:", cachedChannels.length);
+```
 
-  } catch {
-    console.log("❌ Channel fetch error");
-  }
+} catch {
+console.log("❌ Channel fetch error");
+}
 }
 
 // =======================
 async function refreshLive() {
-  if (!cachedChannels.length) return;
+if (!cachedChannels.length) return;
 
-  console.log("🔄 Checking live...");
+console.log("🔄 Checking live...");
 
-  for (const channel of cachedChannels) {
-    try {
-      const res = await fetch(`https://kick.com/api/v2/channels/${channel}`);
-      const text = await res.text();
+for (const channel of cachedChannels) {
+try {
+const res = await fetch(`https://kick.com/api/v2/channels/${channel}`);
+const text = await res.text();
 
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        liveCache[channel] = false;
-        continue;
-      }
-
-      const isLive = data?.livestream?.is_live === true;
-      liveCache[channel] = isLive;
-
-    } catch {
-      liveCache[channel] = false;
-    }
+```
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    liveCache[channel] = false;
+    continue;
   }
 
-  console.log("📡 Live updated");
+  const isLive = data?.livestream?.is_live === true;
+  liveCache[channel] = isLive;
+
+} catch {
+  liveCache[channel] = false;
+}
+```
+
+}
+
+console.log("📡 Live updated");
 }
 
 // =======================
@@ -242,143 +258,183 @@ refreshLive();
 
 // =======================
 app.post("/user/register", async (req, res) => {
-  try {
-    const { channel, password } = req.body;
+try {
+const { channel, password } = req.body;
 
-    if (!channel || !password) {
-      return res.json({ ok: false, message: "Missing data" });
-    }
+```
+if (!channel || !password) {
+  return res.json({ ok: false, message: "Missing data" });
+}
 
-    let existing = [];
+let existing = [];
 
-    try {
-      const check = await fetch(`${SUPABASE_URL}/rest/v1/users?channel=eq.${channel}`, {
-        headers: { apikey: SUPABASE_KEY }
-      });
+try {
+  const check = await fetch(`${SUPABASE_URL}/rest/v1/users?channel=eq.${channel}`, {
+    headers: { apikey: SUPABASE_KEY }
+  });
 
-      existing = await check.json();
-    } catch {
-      return res.json({ ok: false, message: "DB error" });
-    }
+  existing = await check.json();
+} catch {
+  return res.json({ ok: false, message: "DB error" });
+}
 
-    if (existing.length > 0) {
-      const user = existing[0];
+if (existing.length > 0) {
+  const user = existing[0];
 
-      if (user.is_deleted === true) {
-        await fetch(`${SUPABASE_URL}/rest/v1/users?channel=eq.${channel}`, {
-          method: "PATCH",
-          headers: {
-            apikey: SUPABASE_KEY,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            password,
-            approved: false,
-            is_deleted: false
-          })
-        });
-
-        return res.json({ ok: true, message: "Re-registered" });
-      }
-
-      return res.json({ ok: false, message: "Already exists" });
-    }
-
-    await fetch(`${SUPABASE_URL}/rest/v1/users`, {
-      method: "POST",
+  if (user.is_deleted === true) {
+    await fetch(`${SUPABASE_URL}/rest/v1/users?channel=eq.${channel}`, {
+      method: "PATCH",
       headers: {
         apikey: SUPABASE_KEY,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        channel,
         password,
         approved: false,
         is_deleted: false
       })
     });
 
-    return res.json({ ok: true });
-
-  } catch {
-    return res.json({ ok: false, message: "Server error" });
+    return res.json({ ok: true, message: "Re-registered" });
   }
+
+  return res.json({ ok: false, message: "Already exists" });
+}
+
+await fetch(`${SUPABASE_URL}/rest/v1/users`, {
+  method: "POST",
+  headers: {
+    apikey: SUPABASE_KEY,
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    channel,
+    password,
+    approved: false,
+    is_deleted: false
+  })
+});
+
+return res.json({ ok: true });
+```
+
+} catch {
+return res.json({ ok: false, message: "Server error" });
+}
+});
+
+// =======================
+// 🔥 NEW FIX (APPROVE USER)
+app.post("/admin/approve-user", async (req, res) => {
+const key = req.headers["x-admin-key"];
+if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
+
+try {
+const { channel } = req.body;
+
+```
+if (!channel) {
+  return res.json({ ok: false, message: "Missing channel" });
+}
+
+await fetch(`${SUPABASE_URL}/rest/v1/users?channel=eq.${channel}`, {
+  method: "PATCH",
+  headers: {
+    apikey: SUPABASE_KEY,
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    approved: true
+  })
+});
+
+console.log("✅ Approved:", channel);
+
+return res.json({ ok: true });
+```
+
+} catch (err) {
+console.log("❌ Approve error", err);
+return res.json({ ok: false });
+}
 });
 
 // =======================
 app.get("/sync", async (req, res) => {
 
-  if (verificationMode.active) {
-    return res.json({
-      status: "verification",
-      channels: [...vipChannels],
-      verificationActive: true,
-      vipChannels: [...vipChannels]
-    });
-  }
+if (verificationMode.active) {
+return res.json({
+status: "verification",
+channels: [...vipChannels],
+verificationActive: true,
+vipChannels: [...vipChannels]
+});
+}
 
-  return res.json({
-    status: "active",
-    channels: cachedChannels,
-    vip: [...vipChannels],
-    verificationActive: false,
-    vipChannels: [...vipChannels]
-  });
+return res.json({
+status: "active",
+channels: cachedChannels,
+vip: [...vipChannels],
+verificationActive: false,
+vipChannels: [...vipChannels]
+});
 });
 
 // =======================
 app.get("/status", (req, res) => {
-  res.json(liveCache);
+res.json(liveCache);
 });
 
 app.post("/check-live", async (req, res) => {
-  try {
-    const { channel } = req.body;
+try {
+const { channel } = req.body;
 
-    return res.json({
-      live: liveCache[channel] || false
-    });
+```
+return res.json({
+  live: liveCache[channel] || false
+});
+```
 
-  } catch {
-    res.json({ live: false });
-  }
+} catch {
+res.json({ live: false });
+}
 });
 
 // =======================
 app.post("/admin/set-vip", (req, res) => {
-  const key = req.headers["x-admin-key"];
-  if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
+const key = req.headers["x-admin-key"];
+if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
 
-  vipChannels = new Set(req.body.channels || []);
-  console.log("⭐ VIP:", [...vipChannels]);
+vipChannels = new Set(req.body.channels || []);
+console.log("⭐ VIP:", [...vipChannels]);
 
-  res.json({ ok: true });
+res.json({ ok: true });
 });
 
 // =======================
 app.post("/admin/start-verification", (req, res) => {
-  const key = req.headers["x-admin-key"];
-  if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
+const key = req.headers["x-admin-key"];
+if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
 
-  verificationMode.active = true;
+verificationMode.active = true;
 
-  console.log("🧪 Verification ON");
+console.log("🧪 Verification ON");
 
-  res.json({ ok: true });
+res.json({ ok: true });
 });
 
 app.post("/admin/stop-verification", (req, res) => {
-  const key = req.headers["x-admin-key"];
-  if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
+const key = req.headers["x-admin-key"];
+if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
 
-  verificationMode.active = false;
+verificationMode.active = false;
 
-  console.log("🛑 Verification OFF");
+console.log("🛑 Verification OFF");
 
-  res.json({ ok: true });
+res.json({ ok: true });
 });
 
 // =======================
 app.listen(PORT, () => {
-  console.log("🚀 Server running on port", PORT);
+console.log("🚀 Server running on port", PORT);
 });
