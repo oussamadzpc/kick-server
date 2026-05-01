@@ -71,7 +71,7 @@ const title = ctx.title || "fun stream";
 const chat = (ctx.chatSample || []).slice(0, 8);
 
 const chatExamples = chat.length
-  ? chat.map(x => `- ${x}`).join("\n")
+  ? chat.map(x => "- " + x).join("\n")
   : "- gg\n- nice\n- lol 😂";
 
 const prompt = `
@@ -324,6 +324,7 @@ return res.json({ ok: false, message: "Server error" });
 });
 
 // =======================
+// 🔥 NEW FIX (APPROVE USER)
 app.post("/admin/approve-user", async (req, res) => {
 const key = req.headers["x-admin-key"];
 if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
@@ -350,7 +351,7 @@ await fetch(`${SUPABASE_URL}/rest/v1/users?channel=eq.${channel}`, {
 console.log("✅ Approved:", channel);
 
 return res.json({ ok: true });
-```
+
 
 } catch (err) {
 console.log("❌ Approve error", err);
