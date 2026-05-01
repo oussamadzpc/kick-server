@@ -474,3 +474,19 @@ app.post("/admin/update", async (req, res) => {
     return res.json({ ok: false });
   }
 });
+app.get("/debug/users", async (req, res) => {
+  try {
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/users`,
+      { headers: getHeaders() }
+    );
+
+    const data = await r.json();
+
+    console.log("🧪 ALL USERS:", data);
+
+    res.json(data);
+  } catch (err) {
+    res.json({ error: err.message });
+  }
+});
