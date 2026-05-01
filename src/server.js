@@ -324,7 +324,6 @@ return res.json({ ok: false, message: "Server error" });
 });
 
 // =======================
-// 🔥 NEW FIX (APPROVE USER)
 app.post("/admin/approve-user", async (req, res) => {
 const key = req.headers["x-admin-key"];
 if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
