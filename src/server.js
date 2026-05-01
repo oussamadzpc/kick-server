@@ -1,5 +1,6 @@
-const express = require("express");
-const cors = require("cors");
+import express from "express";
+import cors from "cors";
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -12,15 +13,6 @@ const ADMIN_KEY = process.env.ADMIN_KEY || "2107";
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
 // =======================
-// 🔥 NEW SYSTEMS
-// =======================
-let vipChannels = new Set();
-
-let verificationMode = {
-active: false
-};
-
-// =======================
 // 🧠 CACHE
 // =======================
 let cachedChannels = [];
@@ -29,12 +21,16 @@ let commentPool = {};
 let channelContext = {};
 
 // =======================
+// 🔥 NEW (SAFE)
+// =======================
+let verificationActive = false;
+let vipChannels = [];
+
+// =======================
 const POOL_SIZE = 30;
 const REFILL_THRESHOLD = 10;
 const AI_COOLDOWN = 10000;
 
-// =======================
-// 🧠 SAFE PARSER
 // =======================
 function safeParseComments(text) {
 try {
@@ -66,8 +62,6 @@ return [
 ];
 }
 
-// =======================
-// 🔥 AI GENERATOR
 // =======================
 async function generateComments(channel) {
 try {
@@ -104,7 +98,7 @@ const response = await fetch("https://api.groq.com/openai/v1/chat/completions", 
   method: "POST",
   headers: {
     "Content-Type": "application/json",
-    "Authorization": `Bearer ${GROQ_API_KEY}`
+    "Authorization": \`Bearer \${GROQ_API_KEY}\`
   },
   body: JSON.stringify({
     model: "llama-3.1-8b-instant",
@@ -232,7 +226,7 @@ console.log("🔄 Checking live...");
 
 for (const channel of cachedChannels) {
 try {
-const res = await fetch(`https://kick.com/api/v2/channels/${channel}`);
+const res = await fetch(`https://kick.com/api/v2/channels/\${channel}\`);
 const text = await res.text();
 
 ```
@@ -277,7 +271,7 @@ if (!channel || !password) {
 let existing = [];
 
 try {
-  const check = await fetch(`${SUPABASE_URL}/rest/v1/users?channel=eq.${channel}`, {
+  const check = await fetch(\`\${SUPABASE_URL}/rest/v1/users?channel=eq.\${channel}\`, {
     headers: { apikey: SUPABASE_KEY }
   });
 
@@ -290,7 +284,7 @@ if (existing.length > 0) {
   const user = existing[0];
 
   if (user.is_deleted === true) {
-    await fetch(`${SUPABASE_URL}/rest/v1/users?channel=eq.${channel}`, {
+    await fetch(\`\${SUPABASE_URL}/rest/v1/users?channel=eq.\${channel}\`, {
       method: "PATCH",
       headers: {
         apikey: SUPABASE_KEY,
@@ -309,7 +303,7 @@ if (existing.length > 0) {
   return res.json({ ok: false, message: "Already exists" });
 }
 
-await fetch(`${SUPABASE_URL}/rest/v1/users`, {
+await fetch(\`\${SUPABASE_URL}/rest/v1/users\`, {
   method: "POST",
   headers: {
     apikey: SUPABASE_KEY,
@@ -332,26 +326,26 @@ return res.json({ ok: false, message: "Server error" });
 });
 
 // =======================
-// 🔥 SYNC (UPDATED FINAL)
+// 🔥 SYNC (UPDATED)
 // =======================
 app.get("/sync", async (req, res) => {
 
-if (verificationMode.active) {
+if (verificationActive) {
 return res.json({
 status: "verification",
-channels: [...vipChannels],
+channels: vipChannels,
 verificationActive: true,
-vipChannels: [...vipChannels]
+vipChannels: vipChannels
 });
 }
 
 return res.json({
 status: "active",
 channels: cachedChannels,
-vip: [...vipChannels],
 verificationActive: false,
-vipChannels: [...vipChannels]
+vipChannels: vipChannels
 });
+
 });
 
 // =======================
@@ -375,26 +369,14 @@ res.json({ live: false });
 });
 
 // =======================
-// 🔥 ADMIN VIP
-// =======================
-app.post("/admin/set-vip", (req, res) => {
-const key = req.headers["x-admin-key"];
-if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
-
-vipChannels = new Set(req.body.channels || []);
-console.log("⭐ VIP:", [...vipChannels]);
-
-res.json({ ok: true });
-});
-
-// =======================
 // 🔥 ADMIN VERIFICATION
 // =======================
 app.post("/admin/start-verification", (req, res) => {
 const key = req.headers["x-admin-key"];
 if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
 
-verificationMode.active = true;
+verificationActive = true;
+vipChannels = req.body.channels || [];
 
 console.log("🧪 Verification ON");
 
@@ -405,7 +387,8 @@ app.post("/admin/stop-verification", (req, res) => {
 const key = req.headers["x-admin-key"];
 if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
 
-verificationMode.active = false;
+verificationActive = false;
+vipChannels = [];
 
 console.log("🛑 Verification OFF");
 
