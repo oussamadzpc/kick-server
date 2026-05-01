@@ -44,6 +44,8 @@ button {
 
 .load-btn { background: #3b82f6; color: white; }
 .delete-btn { background: #ef4444; color: white; }
+.start-ver-btn { background: #22c55e; color: white; }
+.stop-ver-btn { background: #ef4444; color: white; }
 
 .container {
   display: flex;
@@ -107,10 +109,9 @@ td:first-child {
 .actions button:nth-child(1) { background: #22c55e; color: white; }
 .actions button:nth-child(2) { background: #f59e0b; color: white; }
 .actions button:nth-child(3) { background: #ef4444; color: white; }
-
 </style>
-
 </head>
+
 <body>
 
 <h1>Admin Panel</h1>
@@ -119,6 +120,9 @@ td:first-child {
   <input type="text" id="search" placeholder="Search channel..." oninput="render()">
   <button class="load-btn" onclick="loadRequests()">Load</button>
   <button class="delete-btn" onclick="deleteSelected()">Delete Selected</button>
+
+  <button class="start-ver-btn" onclick="startVerification()">Start Verification</button>
+  <button class="stop-ver-btn" onclick="stopVerification()">Stop Verification</button>
 </div>
 
 <div class="container">
@@ -157,9 +161,8 @@ td:first-child {
 </div>
 
 <script>
-
 const SUPABASE_URL = "https://pdgglivspfctmzbjpqjm.supabase.co/rest/v1/users";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBkZ2dsaXZzcGZjdG16YmpwcWptIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NzMxMjMxNSwiZXhwIjoyMDkyODg4MzE1fQ.9jX9dbGuGqcSkyj_ZYkqunjXQTAcO5eWx27tqNiRdg0"; // ⚠️ حط المفتاح الصحيح
+const SUPABASE_KEY = "PUT_YOUR_KEY_HERE";
 
 const BASE_URL = "https://kick-server-4c5d.onrender.com";
 const ADMIN_KEY = "2107";
@@ -174,24 +177,19 @@ if (enteredKey !== ADMIN_KEY) {
 }
 
 async function loadRequests() {
-
-  // ✅ جلب كل المستخدمين
   const res = await fetch(SUPABASE_URL, {
     headers: { "apikey": SUPABASE_KEY }
   });
 
   allData = await res.json();
 
-  // ✅ جلب المحذوفين
   const deletedRes = await fetch(SUPABASE_URL + "?is_deleted=eq.true", {
     headers: { "apikey": SUPABASE_KEY }
   });
 
   deletedList = await deletedRes.json();
 
-  // ✅ إزالة المحذوفين من القائمة الرئيسية
   allData = allData.filter(u => u.is_deleted !== true);
-
   allData.sort((a,b)=> new Date(b.created_at)-new Date(a.created_at));
 
   render();
@@ -221,18 +219,14 @@ function render() {
 
     if (isApproved) {
       approvedCount++;
-
       row.innerHTML = `
         <td><input type="checkbox" class="select" data-id="${user.id}" data-channel="${user.channel}"></td>
         <td>${user.channel} ${flag}</td>
         <td class="status-approved">Approved</td>
       `;
-
       approvedBox.appendChild(row);
-
     } else {
       pendingCount++;
-
       row.innerHTML = `
         <td><input type="checkbox" class="select" data-id="${user.id}" data-channel="${user.channel}"></td>
         <td>${user.channel} ${flag}</td>
@@ -243,7 +237,6 @@ function render() {
           <button onclick="block('${user.id}')">⛔</button>
         </td>
       `;
-
       pendingBox.appendChild(row);
     }
 
@@ -259,16 +252,48 @@ function toggleAll(source) {
   });
 }
 
+async function startVerification() {
+  const selected = document.querySelectorAll("#approved .select:checked");
+  if (selected.length === 0) {
+    alert("Select VIP channels first");
+    return;
+  }
+
+  const channels = [];
+  selected.forEach(cb => channels.push(cb.dataset.channel));
+
+  await fetch(BASE_URL + "/admin/start-verification", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-admin-key": ADMIN_KEY
+    },
+    body: JSON.stringify({ channels })
+  });
+
+  alert("Verification Started");
+}
+
+async function stopVerification() {
+  await fetch(BASE_URL + "/admin/stop-verification", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-admin-key": ADMIN_KEY
+    }
+  });
+
+  alert("Verification Stopped");
+}
+
 async function deleteSelected() {
-
   const selected = document.querySelectorAll(".select:checked");
-
   if (selected.length === 0) {
     alert("Select users first");
     return;
   }
 
-  if (!confirm("Are you sure you want to delete selected users?")) return;
+  if (!confirm("Are you sure?")) return;
 
   for (let cb of selected) {
     const id = cb.dataset.id;
@@ -284,7 +309,6 @@ async function deleteSelected() {
     });
   }
 
-  alert("Deleted successfully");
   loadRequests();
 }
 
@@ -325,7 +349,6 @@ async function block(id) {
 }
 
 loadRequests();
-
 </script>
 
 </body>
