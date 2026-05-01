@@ -309,6 +309,7 @@ app.post("/user/register", async (req, res) => {
 });
 
 // =======================
+// ✅ FIXED APPROVE (100%)
 app.post("/admin/approve-user", async (req, res) => {
   const key = req.headers["x-admin-key"];
   if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
@@ -320,8 +321,24 @@ app.post("/admin/approve-user", async (req, res) => {
       return res.json({ ok: false, message: "Missing channel" });
     }
 
-    const r = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?channel=eq.${channel}`,
+    // 1️⃣ نجيب اليوزر
+    const findRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/users?channel=eq.${encodeURIComponent(channel)}`,
+      { headers: getHeaders() }
+    );
+
+    const users = await findRes.json();
+
+    if (!users.length) {
+      console.log("❌ User not found:", channel);
+      return res.json({ ok: false, message: "User not found" });
+    }
+
+    const userId = users[0].id;
+
+    // 2️⃣ نحدث باستخدام ID
+    const updateRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/users?id=eq.${userId}`,
       {
         method: "PATCH",
         headers: getHeaders(),
@@ -329,9 +346,10 @@ app.post("/admin/approve-user", async (req, res) => {
       }
     );
 
-    const data = await r.json();
+    const text = await updateRes.text();
 
-    console.log("✅ Approved:", channel, data);
+    console.log("🧪 UPDATE RESPONSE:", text);
+    console.log("🧪 STATUS:", updateRes.status);
 
     return res.json({ ok: true });
 
