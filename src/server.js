@@ -22,7 +22,7 @@ let vipChannels = new Set();
 
 let verificationMode = {
   active: false,
-  channels: [] // ✅ FIX
+  channels: []
 };
 
 // =======================
@@ -261,127 +261,25 @@ refreshChannels();
 refreshLive();
 
 // =======================
-app.post("/user/register", async (req, res) => {
-  try {
-    const { channel, password } = req.body;
+// 🔥 FIXED SYNC
+app.get("/sync", (req, res) => {
 
-    if (!channel || !password) {
-      return res.json({ ok: false, message: "Missing data" });
-    }
-
-    const check = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?channel=eq.${channel}`,
-      { headers: getHeaders() }
-    );
-
-    const existing = await check.json();
-
-    if (existing.length > 0) {
-      const user = existing[0];
-
-      if (user.is_deleted === true) {
-        await fetch(
-          `${SUPABASE_URL}/rest/v1/users?channel=eq.${channel}`,
-          {
-            method: "PATCH",
-            headers: getHeaders(),
-            body: JSON.stringify({
-              password,
-              approved: false,
-              is_deleted: false
-            })
-          }
-        );
-
-        return res.json({ ok: true, message: "Re-registered" });
-      }
-
-      return res.json({ ok: false, message: "Already exists" });
-    }
-
-    await fetch(`${SUPABASE_URL}/rest/v1/users`, {
-      method: "POST",
-      headers: getHeaders(),
-      body: JSON.stringify({
-        channel,
-        password,
-        approved: false,
-        is_deleted: false
-      })
+  if (verificationMode.active) {
+    return res.json({
+      status: "verification",
+      channels: [],
+      vipChannels: verificationMode.channels,
+      verificationActive: true
     });
-
-    return res.json({ ok: true });
-
-  } catch (err) {
-    console.log("❌ register error:", err.message);
-    return res.json({ ok: false });
   }
-});
-
-// =======================
-// ✅ FIXED APPROVE
-app.post("/admin/approve-user", async (req, res) => {
-  const key = req.headers["x-admin-key"];
-  if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
-
-  try {
-    const { channel } = req.body;
-
-    if (!channel) {
-      return res.json({ ok: false, message: "Missing channel" });
-    }
-
-    const r = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?is_deleted=eq.false`,
-      { headers: getHeaders() }
-    );
-
-    const users = await r.json();
-
-    const cleanInput = normalize(channel);
-
-    const user = users.find(u => {
-      const cleanDb = normalize(u.channel);
-      return cleanDb === cleanInput;
-    });
-
-    if (!user) {
-      return res.json({ ok: false, message: "User not found" });
-    }
-
-    await fetch(
-      `${SUPABASE_URL}/rest/v1/users?id=eq.${user.id}`,
-      {
-        method: "PATCH",
-        headers: getHeaders(),
-        body: JSON.stringify({ approved: true })
-      }
-    );
-
-    return res.json({ ok: true });
-
-  } catch {
-    return res.json({ ok: false });
-  }
-});
-
-// =======================
-if (verificationMode.active) {
-  return res.json({
-    status: "verification",
-    channels: [], // 🔥 مهم جدًا
-    vipChannels: verificationMode.channels, // 🔥 مهم
-    verificationActive: true
-  });
-}
 
   return res.json({
     status: "active",
     channels: cachedChannels,
-    vip: [...vipChannels],
-    verificationActive: false,
-    vipChannels: [...vipChannels]
+    vipChannels: [...vipChannels],
+    verificationActive: false
   });
+
 });
 
 // =======================
@@ -419,7 +317,7 @@ app.post("/admin/start-verification", (req, res) => {
   if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
 
   verificationMode.active = true;
-  verificationMode.channels = req.body.channels || []; // ✅ FIX
+  verificationMode.channels = req.body.channels || [];
 
   console.log("🧪 Verification ON:", verificationMode.channels);
 
@@ -431,7 +329,7 @@ app.post("/admin/stop-verification", (req, res) => {
   if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
 
   verificationMode.active = false;
-  verificationMode.channels = []; // ✅ FIX
+  verificationMode.channels = [];
 
   console.log("🛑 Verification OFF");
 
@@ -444,7 +342,6 @@ app.listen(PORT, () => {
 });
 
 // =======================
-// ✅ FIXED ADMIN UPDATE
 app.post("/admin/update", async (req, res) => {
   const key = req.headers["x-admin-key"];
   if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
@@ -452,9 +349,7 @@ app.post("/admin/update", async (req, res) => {
   try {
     const { channel } = req.body;
 
-    if (!channel) {
-      return res.json({ ok: false });
-    }
+    if (!channel) return res.json({ ok: false });
 
     const r = await fetch(
       `${SUPABASE_URL}/rest/v1/users?is_deleted=eq.false`,
@@ -462,17 +357,10 @@ app.post("/admin/update", async (req, res) => {
     );
 
     const users = await r.json();
-
     const cleanInput = normalize(channel);
 
-    const user = users.find(u => {
-      const cleanDb = normalize(u.channel);
-      return cleanDb === cleanInput;
-    });
-
-    if (!user) {
-      return res.json({ ok: false });
-    }
+    const user = users.find(u => normalize(u.channel) === cleanInput);
+    if (!user) return res.json({ ok: false });
 
     await fetch(
       `${SUPABASE_URL}/rest/v1/users?id=eq.${user.id}`,
