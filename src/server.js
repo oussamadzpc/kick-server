@@ -215,7 +215,15 @@ async function refreshChannels() {
     );
 
     const data = await r.json();
+
     cachedChannels = data.map(u => u.channel);
+
+    // 🔥 VIP FROM SUPABASE
+    vipChannels = new Set(
+      data
+        .filter(u => u.is_vip === true)
+        .map(u => u.channel)
+    );
 
     console.log("✅ Channels:", cachedChannels.length);
 
@@ -261,7 +269,6 @@ refreshChannels();
 refreshLive();
 
 // =======================
-// 🔥 FIXED SYNC
 app.get("/sync", (req, res) => {
 
   if (verificationMode.active) {
@@ -301,14 +308,44 @@ app.post("/check-live", (req, res) => {
 });
 
 // =======================
-app.post("/admin/set-vip", (req, res) => {
+// 🔥 UPDATED VIP SYSTEM
+app.post("/admin/set-vip", async (req, res) => {
   const key = req.headers["x-admin-key"];
   if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
 
-  vipChannels = new Set(req.body.channels || []);
-  console.log("⭐ VIP:", [...vipChannels]);
+  try {
+    const channels = req.body.channels || [];
 
-  res.json({ ok: true });
+    // reset all
+    await fetch(
+      `${SUPABASE_URL}/rest/v1/users?is_vip=eq.true`,
+      {
+        method: "PATCH",
+        headers: getHeaders(),
+        body: JSON.stringify({ is_vip: false })
+      }
+    );
+
+    // set new VIP
+    for (const ch of channels) {
+      await fetch(
+        `${SUPABASE_URL}/rest/v1/users?channel=eq.${ch}`,
+        {
+          method: "PATCH",
+          headers: getHeaders(),
+          body: JSON.stringify({ is_vip: true })
+        }
+      );
+    }
+
+    console.log("⭐ VIP updated (DB):", channels);
+
+    return res.json({ ok: true });
+
+  } catch (err) {
+    console.log("❌ VIP error:", err.message);
+    return res.json({ ok: false });
+  }
 });
 
 // =======================
