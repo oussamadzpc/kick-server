@@ -366,15 +366,14 @@ app.post("/admin/approve-user", async (req, res) => {
 });
 
 // =======================
-app.get("/sync", (req, res) => {
-  if (verificationMode.active) {
-    return res.json({
-      status: "verification",
-      channels: verificationMode.channels, // ✅ FIX
-      verificationActive: true,
-      vipChannels: verificationMode.channels
-    });
-  }
+if (verificationMode.active) {
+  return res.json({
+    status: "verification",
+    channels: [], // 🔥 مهم جدًا
+    vipChannels: verificationMode.channels, // 🔥 مهم
+    verificationActive: true
+  });
+}
 
   return res.json({
     status: "active",
