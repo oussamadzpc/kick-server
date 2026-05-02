@@ -240,7 +240,7 @@ async function refreshChannels() {
 }
 
 // =======================
-// 🔥 FIXED CORE (NO BREAKAGE)
+// 🔥 FIXED CORE
 async function refreshLive() {
   if (!cachedChannels.length) return;
 
@@ -262,15 +262,40 @@ async function refreshLive() {
     for (let i = 0; i < 2; i++) {
       try {
         const res = await fetch(`https://kick.com/api/v2/channels/${channel}`);
+
+        // ✅ handle 404 / invalid channel
+        if (!res.ok) {
+          isLiveNow = false;
+          break;
+        }
+
         const data = await res.json();
-        isLiveNow = data?.livestream !== null;
+
+        // ✅ real live check (no false positives)
+        isLiveNow =
+          data?.livestream &&
+          data.livestream !== null &&
+          data.livestream.is_live === true;
+
         break;
+
       } catch {}
     }
 
-    if (isLiveNow === null) continue;
-
     const state = stateMemory[channel];
+
+    // ✅ network fail → treat as fail (no skip)
+    if (isLiveNow === null) {
+      state.fail++;
+      state.success = 0;
+
+      if (state.live && state.fail >= OFFLINE_CONFIRM) {
+        state.live = false;
+      }
+
+      liveCache[channel] = state.live;
+      continue;
+    }
 
     if (isLiveNow) {
       state.success++;
