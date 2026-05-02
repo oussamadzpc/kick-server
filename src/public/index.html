@@ -109,6 +109,12 @@ td:first-child {
 .actions button:nth-child(1) { background: #22c55e; color: white; }
 .actions button:nth-child(2) { background: #f59e0b; color: white; }
 .actions button:nth-child(3) { background: #ef4444; color: white; }
+
+/* 👑 VIP */
+.vip-badge {
+  color: gold;
+  margin-left: 6px;
+}
 </style>
 </head>
 
@@ -124,11 +130,27 @@ td:first-child {
   <button class="start-ver-btn" onclick="startVerification()">Start Verification</button>
   <button class="stop-ver-btn" onclick="stopVerification()">Stop Verification</button>
 
-  <!-- 🔥 NEW VIP BUTTON -->
   <button class="start-ver-btn" onclick="setVIP()">Set VIP</button>
+  <button class="delete-btn" onclick="removeVIP()">Remove VIP</button>
 </div>
 
 <div class="container">
+
+  <!-- 👑 VIP TABLE -->
+  <div class="table-box">
+    <h3>👑 VIP</h3>
+    <div class="count" id="vipCount">0</div>
+    <table>
+      <thead>
+        <tr>
+          <th><input type="checkbox" onclick="toggleAll(this)"></th>
+          <th>Channel</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="vip"></tbody>
+    </table>
+  </div>
 
   <div class="table-box">
     <h3>Pending</h3>
@@ -172,6 +194,7 @@ const ADMIN_KEY = "2107";
 
 let allData = [];
 let deletedList = [];
+let vipList = []; // 👑
 
 const enteredKey = prompt("Enter Admin Password:");
 if (enteredKey !== ADMIN_KEY) {
@@ -192,6 +215,13 @@ async function loadRequests() {
 
   deletedList = await deletedRes.json();
 
+  // 👑 VIP SYNC
+  try {
+    const vipRes = await fetch(BASE_URL + "/sync");
+    const vipData = await vipRes.json();
+    vipList = vipData.vipChannels || [];
+  } catch {}
+
   allData = allData.filter(u => u.is_deleted !== true);
   allData.sort((a,b)=> new Date(b.created_at)-new Date(a.created_at));
 
@@ -203,24 +233,36 @@ function render() {
 
   const pendingBox = document.getElementById("pending");
   const approvedBox = document.getElementById("approved");
+  const vipBox = document.getElementById("vip");
 
   let pendingCount = 0;
   let approvedCount = 0;
+  let vipCount = 0;
 
   pendingBox.innerHTML = "";
   approvedBox.innerHTML = "";
+  vipBox.innerHTML = "";
 
   allData.forEach(user => {
 
     if (!user.channel.toLowerCase().includes(search)) return;
 
+    const isVIP = vipList.includes(user.channel);
     const isDeleted = deletedList.some(d => d.channel === user.channel);
     const flag = isDeleted ? '<span class="deleted-flag">⚠</span>' : '';
 
     const row = document.createElement("tr");
     const isApproved = user.approved === true;
 
-    if (isApproved) {
+    if (isVIP) {
+      vipCount++;
+      row.innerHTML = `
+        <td><input type="checkbox" class="select" data-channel="${user.channel}"></td>
+        <td>${user.channel} <span class="vip-badge">👑</span> ${flag}</td>
+        <td class="status-approved">VIP</td>
+      `;
+      vipBox.appendChild(row);
+    } else if (isApproved) {
       approvedCount++;
       row.innerHTML = `
         <td><input type="checkbox" class="select" data-id="${user.id}" data-channel="${user.channel}"></td>
@@ -247,6 +289,7 @@ function render() {
 
   document.getElementById("pendingCount").textContent = "Total: " + pendingCount;
   document.getElementById("approvedCount").textContent = "Total: " + approvedCount;
+  document.getElementById("vipCount").textContent = "Total: " + vipCount;
 }
 
 function toggleAll(source) {
@@ -392,6 +435,31 @@ async function setVIP() {
     console.log("VIP ERROR:", err);
     alert("VIP update failed");
   }
+}
+
+// 👑 REMOVE VIP
+async function removeVIP() {
+  const selected = document.querySelectorAll("#vip .select:checked");
+
+  if (selected.length === 0) {
+    alert("Select VIP channels first");
+    return;
+  }
+
+  const channels = [];
+  selected.forEach(cb => channels.push(cb.dataset.channel));
+
+  await fetch(BASE_URL + "/admin/remove-vip", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-admin-key": ADMIN_KEY
+    },
+    body: JSON.stringify({ channels })
+  });
+
+  alert("VIP removed");
+  loadRequests();
 }
 
 loadRequests();
