@@ -123,6 +123,9 @@ td:first-child {
 
   <button class="start-ver-btn" onclick="startVerification()">Start Verification</button>
   <button class="stop-ver-btn" onclick="stopVerification()">Stop Verification</button>
+
+  <!-- 🔥 NEW VIP BUTTON -->
+  <button class="start-ver-btn" onclick="setVIP()">Set VIP</button>
 </div>
 
 <div class="container">
@@ -312,7 +315,6 @@ async function deleteSelected() {
   loadRequests();
 }
 
-// 🔥 FIXED APPROVE
 async function approve(channel) {
   try {
     const res = await fetch(BASE_URL + "/admin/update", {
@@ -356,6 +358,40 @@ async function block(id) {
     body: JSON.stringify({ id })
   });
   loadRequests();
+}
+
+// ==========================
+// 🔥 VIP SYSTEM
+async function setVIP() {
+  const selected = document.querySelectorAll("#approved .select:checked");
+
+  if (selected.length === 0) {
+    alert("Select channels to set VIP");
+    return;
+  }
+
+  const channels = [];
+  selected.forEach(cb => channels.push(cb.dataset.channel));
+
+  try {
+    const res = await fetch(BASE_URL + "/admin/set-vip", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-admin-key": ADMIN_KEY
+      },
+      body: JSON.stringify({ channels })
+    });
+
+    const data = await res.json();
+    console.log("VIP SET:", data);
+
+    alert("VIP updated successfully");
+
+  } catch (err) {
+    console.log("VIP ERROR:", err);
+    alert("VIP update failed");
+  }
 }
 
 loadRequests();
