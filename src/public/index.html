@@ -1,126 +1,365 @@
-const API = "https://kick-server-4c5d.onrender.com"; // 🔥 تثبيت الرابط
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Admin Panel</title>
 
+<style>
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+h1 {
+  text-align: center;
+  padding: 20px;
+  margin: 0;
+  background: #020617;
+  border-bottom: 1px solid #1e293b;
+}
+
+.top-bar {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 15px;
+}
+
+input {
+  padding: 8px;
+  border-radius: 8px;
+  border: none;
+  width: 250px;
+}
+
+button {
+  border: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.load-btn { background: #3b82f6; color: white; }
+.delete-btn { background: #ef4444; color: white; }
+.start-ver-btn { background: #22c55e; color: white; }
+.stop-ver-btn { background: #ef4444; color: white; }
+
+.container {
+  display: flex;
+  gap: 20px;
+  padding: 20px;
+}
+
+.table-box {
+  flex: 1;
+  background: #020617;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  padding: 10px;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.count {
+  font-size: 14px;
+  margin-bottom: 10px;
+  opacity: 0.8;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+th, td {
+  padding: 10px;
+  border-bottom: 1px solid #1e293b;
+  vertical-align: middle;
+}
+
+th {
+  position: sticky;
+  top: 0;
+  background: #020617;
+}
+
+th:first-child,
+td:first-child {
+  width: 40px;
+  text-align: center;
+}
+
+.status-approved { color: #22c55e; }
+.status-pending { color: #f59e0b; }
+
+.deleted-flag {
+  color: #facc15;
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+.actions button {
+  margin-right: 5px;
+}
+
+.actions button:nth-child(1) { background: #22c55e; color: white; }
+.actions button:nth-child(2) { background: #f59e0b; color: white; }
+.actions button:nth-child(3) { background: #ef4444; color: white; }
+</style>
+</head>
+
+<body>
+
+<h1>Admin Panel</h1>
+
+<div class="top-bar">
+  <input type="text" id="search" placeholder="Search channel..." oninput="render()">
+  <button class="load-btn" onclick="loadRequests()">Load</button>
+  <button class="delete-btn" onclick="deleteSelected()">Delete Selected</button>
+
+  <button class="start-ver-btn" onclick="startVerification()">Start Verification</button>
+  <button class="stop-ver-btn" onclick="stopVerification()">Stop Verification</button>
+</div>
+
+<div class="container">
+
+  <div class="table-box">
+    <h3>Pending</h3>
+    <div class="count" id="pendingCount">0</div>
+    <table>
+      <thead>
+        <tr>
+          <th><input type="checkbox" onclick="toggleAll(this)"></th>
+          <th>Channel</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="pending"></tbody>
+    </table>
+  </div>
+
+  <div class="table-box">
+    <h3>Approved</h3>
+    <div class="count" id="approvedCount">0</div>
+    <table>
+      <thead>
+        <tr>
+          <th><input type="checkbox" onclick="toggleAll(this)"></th>
+          <th>Channel</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="approved"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+const SUPABASE_URL = "https://pdgglivspfctmzbjpqjm.supabase.co/rest/v1/users";
+const SUPABASE_KEY = "YOUR_KEY";
+
+const BASE_URL = "https://kick-server-4c5d.onrender.com";
 const ADMIN_KEY = "2107";
 
-const pendingBox = document.getElementById("pendingBox");
-const approvedBox = document.getElementById("approvedBox");
-const searchInput = document.getElementById("search");
+let allData = [];
+let deletedList = [];
 
-let allUsers = [];
-let filteredUsers = [];
-let selectedChannels = new Set();
-
-// =========================
-function normalize(str) {
-  return String(str).trim().toLowerCase().replace(/\s+/g, "");
+const enteredKey = prompt("Enter Admin Password:");
+if (enteredKey !== ADMIN_KEY) {
+  document.body.innerHTML = "<h1 style='text-align:center;margin-top:50px;'>Access Denied</h1>";
+  throw new Error("Unauthorized");
 }
 
-// =========================
-async function loadUsers() {
-  try {
-    const res = await fetch(`${API}/debug/users`);
-    const users = await res.json();
+async function loadRequests() {
+  const res = await fetch(SUPABASE_URL, {
+    headers: { "apikey": SUPABASE_KEY }
+  });
 
-    allUsers = users;
-    applyFilter();
+  allData = await res.json();
 
-  } catch (err) {
-    console.log("LOAD ERROR:", err);
-  }
-}
+  const deletedRes = await fetch(SUPABASE_URL + "?is_deleted=eq.true", {
+    headers: { "apikey": SUPABASE_KEY }
+  });
 
-// =========================
-function applyFilter() {
-  const q = normalize(searchInput.value);
+  deletedList = await deletedRes.json();
 
-  filteredUsers = allUsers.filter(u =>
-    normalize(u.channel).includes(q)
-  );
+  allData = allData.filter(u => u.is_deleted !== true);
+  allData.sort((a,b)=> new Date(b.created_at)-new Date(a.created_at));
 
   render();
 }
 
-// =========================
 function render() {
-  pendingBox.innerHTML = "";
-  approvedBox.innerHTML = "";
+  const search = document.getElementById("search").value.toLowerCase();
+
+  const pendingBox = document.getElementById("pending");
+  const approvedBox = document.getElementById("approved");
 
   let pendingCount = 0;
   let approvedCount = 0;
 
-  filteredUsers.forEach(u => {
-    const row = document.createElement("div");
-    row.className = "row";
+  pendingBox.innerHTML = "";
+  approvedBox.innerHTML = "";
 
-    const checked = selectedChannels.has(u.channel);
+  allData.forEach(user => {
 
-    row.innerHTML = `
-      <input type="checkbox" ${checked ? "checked" : ""} />
-      <span>${u.channel}</span>
-      <span>${u.approved ? "Approved" : "Pending"}</span>
-      <button class="approve">✔</button>
-      <button class="delete">✖</button>
-    `;
+    if (!user.channel.toLowerCase().includes(search)) return;
 
-    const checkbox = row.querySelector("input");
-    checkbox.onchange = () => {
-      if (checkbox.checked) {
-        selectedChannels.add(u.channel);
-      } else {
-        selectedChannels.delete(u.channel);
-      }
-    };
+    const isDeleted = deletedList.some(d => d.channel === user.channel);
+    const flag = isDeleted ? '<span class="deleted-flag">⚠</span>' : '';
 
-    // =========================
-    // 🔥 FIXED APPROVE BUTTON
-    row.querySelector(".approve").onclick = async () => {
-      try {
-        const clean = u.channel.trim();
+    const row = document.createElement("tr");
+    const isApproved = user.approved === true;
 
-        const res = await fetch(`${API}/admin/approve-user`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-admin-key": ADMIN_KEY
-          },
-          body: JSON.stringify({
-            channel: clean
-          })
-        });
-
-        const data = await res.json();
-        console.log("APPROVE:", data);
-
-        // 🔥 تحديث فوري بدون انتظار
-        await loadUsers();
-
-      } catch (err) {
-        console.log("APPROVE ERROR:", err);
-      }
-    };
-
-    // =========================
-    row.querySelector(".delete").onclick = async () => {
-      console.log("delete not implemented");
-    };
-
-    if (u.approved) {
-      approvedBox.appendChild(row);
+    if (isApproved) {
       approvedCount++;
+      row.innerHTML = `
+        <td><input type="checkbox" class="select" data-id="${user.id}" data-channel="${user.channel}"></td>
+        <td>${user.channel} ${flag}</td>
+        <td class="status-approved">Approved</td>
+      `;
+      approvedBox.appendChild(row);
     } else {
-      pendingBox.appendChild(row);
       pendingCount++;
+      row.innerHTML = `
+        <td><input type="checkbox" class="select" data-id="${user.id}" data-channel="${user.channel}"></td>
+        <td>${user.channel} ${flag}</td>
+        <td class="status-pending">Pending</td>
+        <td class="actions">
+          <button onclick="approve('${user.channel}')">✔</button>
+          <button onclick="reject('${user.id}')">✖</button>
+          <button onclick="block('${user.id}')">⛔</button>
+        </td>
+      `;
+      pendingBox.appendChild(row);
+    }
+
+  });
+
+  document.getElementById("pendingCount").textContent = "Total: " + pendingCount;
+  document.getElementById("approvedCount").textContent = "Total: " + approvedCount;
+}
+
+function toggleAll(source) {
+  document.querySelectorAll(".select").forEach(cb => {
+    cb.checked = source.checked;
+  });
+}
+
+async function startVerification() {
+  const selected = document.querySelectorAll("#approved .select:checked");
+  if (selected.length === 0) {
+    alert("Select VIP channels first");
+    return;
+  }
+
+  const channels = [];
+  selected.forEach(cb => channels.push(cb.dataset.channel));
+
+  await fetch(BASE_URL + "/admin/start-verification", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-admin-key": ADMIN_KEY
+    },
+    body: JSON.stringify({ channels })
+  });
+
+  alert("Verification Started");
+}
+
+async function stopVerification() {
+  await fetch(BASE_URL + "/admin/stop-verification", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-admin-key": ADMIN_KEY
     }
   });
 
-  document.getElementById("pendingCount").innerText = pendingCount;
-  document.getElementById("approvedCount").innerText = approvedCount;
+  alert("Verification Stopped");
 }
 
-// =========================
-document.getElementById("loadBtn").onclick = loadUsers;
+async function deleteSelected() {
+  const selected = document.querySelectorAll(".select:checked");
+  if (selected.length === 0) {
+    alert("Select users first");
+    return;
+  }
 
-searchInput.oninput = applyFilter;
+  if (!confirm("Are you sure?")) return;
 
-// =========================
-loadUsers();
+  for (let cb of selected) {
+    const id = cb.dataset.id;
+    const channel = cb.dataset.channel;
+
+    await fetch(BASE_URL + "/admin/delete-user", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-admin-key": ADMIN_KEY
+      },
+      body: JSON.stringify({ id, channel })
+    });
+  }
+
+  loadRequests();
+}
+
+// 🔥 FIXED APPROVE
+async function approve(channel) {
+  try {
+    const res = await fetch(BASE_URL + "/admin/approve-user", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-admin-key": ADMIN_KEY
+      },
+      body: JSON.stringify({ channel })
+    });
+
+    const data = await res.json();
+    console.log("APPROVE:", data);
+
+    await loadRequests();
+
+  } catch (err) {
+    console.log("APPROVE ERROR:", err);
+  }
+}
+
+async function reject(id) {
+  await fetch(BASE_URL + "/admin/update", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-admin-key": ADMIN_KEY
+    },
+    body: JSON.stringify({ id, status: "rejected" })
+  });
+  loadRequests();
+}
+
+async function block(id) {
+  await fetch(BASE_URL + "/admin/block", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-admin-key": ADMIN_KEY
+    },
+    body: JSON.stringify({ id })
+  });
+  loadRequests();
+}
+
+loadRequests();
+</script>
+
+</body>
+</html>
