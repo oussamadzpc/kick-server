@@ -28,12 +28,20 @@ let verificationMode = {
 // =======================
 let cachedChannels = [];
 let liveCache = {};
+
+// 🔥 NEW STATE MEMORY
+let stateMemory = {};
+
 let commentPool = {};
 let channelContext = {};
 
 const POOL_SIZE = 30;
 const REFILL_THRESHOLD = 10;
 const AI_COOLDOWN = 10000;
+
+// 🔥 NEW THRESHOLDS
+const LIVE_CONFIRM = 2;
+const OFFLINE_CONFIRM = 3;
 
 // =======================
 function normalize(str) {
@@ -232,32 +240,59 @@ async function refreshChannels() {
 }
 
 // =======================
+// 🔥 FIXED CORE (NO BREAKAGE)
 async function refreshLive() {
   if (!cachedChannels.length) return;
 
   console.log("🔄 Checking live...");
 
-  for (const channel of cachedChannels) {
-    try {
-      const res = await fetch(`https://kick.com/api/v2/channels/${channel}`);
-      const text = await res.text();
+  for (const raw of cachedChannels) {
+    const channel = normalize(raw);
 
-      let data;
+    if (!stateMemory[channel]) {
+      stateMemory[channel] = {
+        live: false,
+        success: 0,
+        fail: 0
+      };
+    }
+
+    let isLiveNow = null;
+
+    for (let i = 0; i < 2; i++) {
       try {
-        data = JSON.parse(text);
-      } catch {
-        liveCache[channel] = false;
-        continue;
+        const res = await fetch(`https://kick.com/api/v2/channels/${channel}`);
+        const data = await res.json();
+        isLiveNow = data?.livestream !== null;
+        break;
+      } catch {}
+    }
+
+    if (isLiveNow === null) continue;
+
+    const state = stateMemory[channel];
+
+    if (isLiveNow) {
+      state.success++;
+      state.fail = 0;
+
+      if (!state.live && state.success >= LIVE_CONFIRM) {
+        state.live = true;
       }
 
-      liveCache[channel] = data?.livestream?.is_live === true;
+    } else {
+      state.fail++;
+      state.success = 0;
 
-    } catch {
-      liveCache[channel] = false;
+      if (state.live && state.fail >= OFFLINE_CONFIRM) {
+        state.live = false;
+      }
     }
+
+    liveCache[channel] = state.live;
   }
 
-  console.log("📡 Live updated");
+  console.log("📡 Live stable updated");
 }
 
 // =======================
@@ -346,7 +381,6 @@ app.post("/admin/set-vip", async (req, res) => {
 });
 
 // =======================
-// 👑 REMOVE VIP
 app.post("/admin/remove-vip", async (req, res) => {
   const key = req.headers["x-admin-key"];
   if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
@@ -367,7 +401,7 @@ app.post("/admin/remove-vip", async (req, res) => {
 
     console.log("❌ VIP removed (DB):", channels);
 
-    await refreshChannels(); // تحديث فوري
+    await refreshChannels();
 
     return res.json({ ok: true });
 
