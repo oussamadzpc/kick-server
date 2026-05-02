@@ -21,7 +21,8 @@ if (!SUPABASE_KEY) {
 let vipChannels = new Set();
 
 let verificationMode = {
-  active: false
+  active: false,
+  channels: [] // ✅ FIX
 };
 
 // =======================
@@ -33,6 +34,15 @@ let channelContext = {};
 const POOL_SIZE = 30;
 const REFILL_THRESHOLD = 10;
 const AI_COOLDOWN = 10000;
+
+// =======================
+function normalize(str) {
+  return String(str)
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .normalize("NFKC");
+}
 
 // =======================
 function safeParseComments(text) {
@@ -309,7 +319,7 @@ app.post("/user/register", async (req, res) => {
 });
 
 // =======================
-// ✅ FIXED APPROVE (FINAL)
+// ✅ FIXED APPROVE
 app.post("/admin/approve-user", async (req, res) => {
   const key = req.headers["x-admin-key"];
   if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
@@ -328,9 +338,12 @@ app.post("/admin/approve-user", async (req, res) => {
 
     const users = await r.json();
 
-    const user = users.find(
-      u => u.channel && u.channel.trim().toLowerCase() === channel.trim().toLowerCase()
-    );
+    const cleanInput = normalize(channel);
+
+    const user = users.find(u => {
+      const cleanDb = normalize(u.channel);
+      return cleanDb === cleanInput;
+    });
 
     if (!user) {
       return res.json({ ok: false, message: "User not found" });
@@ -357,9 +370,9 @@ app.get("/sync", (req, res) => {
   if (verificationMode.active) {
     return res.json({
       status: "verification",
-      channels: [...vipChannels],
+      channels: verificationMode.channels, // ✅ FIX
       verificationActive: true,
-      vipChannels: [...vipChannels]
+      vipChannels: verificationMode.channels
     });
   }
 
@@ -407,8 +420,9 @@ app.post("/admin/start-verification", (req, res) => {
   if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
 
   verificationMode.active = true;
+  verificationMode.channels = req.body.channels || []; // ✅ FIX
 
-  console.log("🧪 Verification ON");
+  console.log("🧪 Verification ON:", verificationMode.channels);
 
   res.json({ ok: true });
 });
@@ -418,6 +432,7 @@ app.post("/admin/stop-verification", (req, res) => {
   if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
 
   verificationMode.active = false;
+  verificationMode.channels = []; // ✅ FIX
 
   console.log("🛑 Verification OFF");
 
@@ -449,9 +464,12 @@ app.post("/admin/update", async (req, res) => {
 
     const users = await r.json();
 
-    const user = users.find(
-      u => u.channel && u.channel.trim().toLowerCase() === channel.trim().toLowerCase()
-    );
+    const cleanInput = normalize(channel);
+
+    const user = users.find(u => {
+      const cleanDb = normalize(u.channel);
+      return cleanDb === cleanInput;
+    });
 
     if (!user) {
       return res.json({ ok: false });
