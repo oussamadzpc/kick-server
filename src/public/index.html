@@ -136,7 +136,6 @@ td:first-child {
 
 <div class="container">
 
-  <!-- 👑 VIP TABLE -->
   <div class="table-box">
     <h3>👑 VIP</h3>
     <div class="count" id="vipCount">0</div>
@@ -194,7 +193,7 @@ const ADMIN_KEY = "2107";
 
 let allData = [];
 let deletedList = [];
-let vipList = []; // 👑
+let vipList = [];
 
 const enteredKey = prompt("Enter Admin Password:");
 if (enteredKey !== ADMIN_KEY) {
@@ -215,7 +214,6 @@ async function loadRequests() {
 
   deletedList = await deletedRes.json();
 
-  // 👑 VIP SYNC
   try {
     const vipRes = await fetch(BASE_URL + "/sync");
     const vipData = await vipRes.json();
@@ -355,7 +353,7 @@ async function deleteSelected() {
     });
   }
 
-  loadRequests();
+  await loadRequests();
 }
 
 async function approve(channel) {
@@ -388,7 +386,7 @@ async function reject(id) {
     },
     body: JSON.stringify({ id, status: "rejected" })
   });
-  loadRequests();
+  await loadRequests();
 }
 
 async function block(id) {
@@ -400,11 +398,9 @@ async function block(id) {
     },
     body: JSON.stringify({ id })
   });
-  loadRequests();
+  await loadRequests();
 }
 
-// ==========================
-// 🔥 VIP SYSTEM
 async function setVIP() {
   const selected = document.querySelectorAll("#approved .select:checked");
 
@@ -430,6 +426,7 @@ async function setVIP() {
     console.log("VIP SET:", data);
 
     alert("VIP updated successfully");
+    await loadRequests();
 
   } catch (err) {
     console.log("VIP ERROR:", err);
@@ -437,7 +434,6 @@ async function setVIP() {
   }
 }
 
-// 👑 REMOVE VIP
 async function removeVIP() {
   const selected = document.querySelectorAll("#vip .select:checked");
 
@@ -459,7 +455,7 @@ async function removeVIP() {
   });
 
   alert("VIP removed");
-  loadRequests();
+  await loadRequests();
 }
 
 loadRequests();
