@@ -35,15 +35,6 @@ const REFILL_THRESHOLD = 10;
 const AI_COOLDOWN = 10000;
 
 // =======================
-function normalize(str) {
-  return String(str)
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "")
-    .normalize("NFKC");
-}
-
-// =======================
 function safeParseComments(text) {
   try {
     const parsed = JSON.parse(text);
@@ -318,7 +309,7 @@ app.post("/user/register", async (req, res) => {
 });
 
 // =======================
-// ✅ FIXED APPROVE
+// ✅ FIXED APPROVE (FINAL)
 app.post("/admin/approve-user", async (req, res) => {
   const key = req.headers["x-admin-key"];
   if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
@@ -337,12 +328,9 @@ app.post("/admin/approve-user", async (req, res) => {
 
     const users = await r.json();
 
-    const cleanInput = normalize(channel);
-
-    const user = users.find(u => {
-      const cleanDb = normalize(u.channel);
-      return cleanDb === cleanInput;
-    });
+    const user = users.find(
+      u => u.channel && u.channel.trim().toLowerCase() === channel.trim().toLowerCase()
+    );
 
     if (!user) {
       return res.json({ ok: false, message: "User not found" });
@@ -461,12 +449,9 @@ app.post("/admin/update", async (req, res) => {
 
     const users = await r.json();
 
-    const cleanInput = normalize(channel);
-
-    const user = users.find(u => {
-      const cleanDb = normalize(u.channel);
-      return cleanDb === cleanInput;
-    });
+    const user = users.find(
+      u => u.channel && u.channel.trim().toLowerCase() === channel.trim().toLowerCase()
+    );
 
     if (!user) {
       return res.json({ ok: false });
