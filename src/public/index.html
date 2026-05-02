@@ -162,7 +162,7 @@ td:first-child {
 
 <script>
 const SUPABASE_URL = "https://pdgglivspfctmzbjpqjm.supabase.co/rest/v1/users";
-const SUPABASE_KEY = "YOUR_KEY";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBkZ2dsaXZzcGZjdG16YmpwcWptIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NzMxMjMxNSwiZXhwIjoyMDkyODg4MzE1fQ.9jX9dbGuGqcSkyj_ZYkqunjXQTAcO5eWx27tqNiRdg0";
 
 const BASE_URL = "https://kick-server-4c5d.onrender.com";
 const ADMIN_KEY = "2107";
@@ -315,13 +315,13 @@ async function deleteSelected() {
 // 🔥 FIXED APPROVE
 async function approve(channel) {
   try {
-    const res = await fetch(BASE_URL + "/admin/approve-user", {
+    const res = await fetch(BASE_URL + "/admin/update", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "x-admin-key": ADMIN_KEY
       },
-      body: JSON.stringify({ channel })
+      body: JSON.stringify({ channel, approved: true })
     });
 
     const data = await res.json();
