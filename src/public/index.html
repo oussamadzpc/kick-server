@@ -132,6 +132,15 @@ td:first-child {
 
   <button class="start-ver-btn" onclick="setVIP()">Set VIP</button>
   <button class="delete-btn" onclick="removeVIP()">Remove VIP</button>
+<span id="verStatus" style="
+  margin-left:10px;
+  padding:6px 12px;
+  border-radius:20px;
+  font-weight:bold;
+  background:#334155;
+">
+  ⚪ Stopped
+</span>
 </div>
 
 <div class="container">
@@ -218,6 +227,7 @@ async function loadRequests() {
     const vipRes = await fetch(BASE_URL + "/sync");
     const vipData = await vipRes.json();
     vipList = vipData.vipChannels || [];
+updateVerificationStatus(vipData.verificationActive);
   } catch {}
 
   allData = allData.filter(u => u.is_deleted !== true);
@@ -316,6 +326,7 @@ async function startVerification() {
   });
 
   alert("Verification Started");
+updateVerificationStatus(true);
 }
 
 async function stopVerification() {
@@ -328,6 +339,7 @@ async function stopVerification() {
   });
 
   alert("Verification Stopped");
+updateVerificationStatus(false);
 }
 
 async function deleteSelected() {
@@ -459,6 +471,24 @@ async function removeVIP() {
 }
 
 loadRequests();
+</script>
+<script>
+
+// كودك الحالي هنا...
+
+function updateVerificationStatus(active) {
+  const el = document.getElementById("verStatus");
+  if (!el) return;
+
+  if (active) {
+    el.textContent = "🟢 Verification ON";
+    el.style.background = "#14532d";
+  } else {
+    el.textContent = "🔴 Verification OFF";
+    el.style.background = "#7f1d1d";
+  }
+}
+
 </script>
 
 </body>
