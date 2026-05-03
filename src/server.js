@@ -271,15 +271,23 @@ async function refreshLive() {
 
         const data = await res.json();
 
-        // ✅ real live check (no false positives)
-        isLiveNow =
-          data?.livestream &&
-          data.livestream !== null &&
-          data.livestream.is_live === true;
+ // 🎯 API result
+let apiLive =
+  data?.livestream &&
+  data.livestream !== null &&
+  data.livestream.is_live === true;
+
+// 🔥 HYBRID CHECK (SAFE)
+if (apiLive === false) {
+  const htmlCheck = await checkLiveFromHTML(channel);
+  isLiveNow = htmlCheck === true;
+} else {
+  isLiveNow = apiLive;
+}
 
         break;
 
-      } catch {}
+      } catch (err) {}
     }
 
     const state = stateMemory[channel];
@@ -502,3 +510,23 @@ app.post("/admin/update", async (req, res) => {
     return res.json({ ok: false });
   }
 });
+// =======================
+// 🔍 HTML LIVE CHECK (SAFE)
+async function checkLiveFromHTML(channel) {
+  try {
+    const res = await fetch(`https://kick.com/${channel}`);
+    const html = await res.text();
+
+    if (
+      html.includes('"isLive":true') ||
+      html.includes('"is_live":true')
+    ) {
+      return true;
+    }
+
+    return false;
+
+  } catch (err) {
+    return null;
+  }
+}
