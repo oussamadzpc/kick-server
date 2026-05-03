@@ -78,11 +78,9 @@ async function checkLiveFromHTML(channel) {
     const res = await fetch(`https://kick.com/${channel}`);
     const html = await res.text();
 
-    // ✅ أقوى كشف
     if (
       html.includes('"isLive":true') ||
-      html.includes('"is_live":true') ||
-     
+      html.includes('"is_live":true')
     ) {
       return true;
     }
