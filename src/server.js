@@ -290,6 +290,7 @@ async function refreshLive() {
         }
 
         const data = await res.json();
+console.log("🔍", channel, data?.livestream?.is_live);
 
         // ✅ real live check (no false positives)
         isLiveNow =
