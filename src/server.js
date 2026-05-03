@@ -558,3 +558,24 @@ app.post("/admin/update", async (req, res) => {
     return res.json({ ok: false });
   }
 });
+app.listen(PORT, () => {
+  console.log("🚀 Server running on port", PORT);
+});
+
+// =======================
+// 🔥 TEST ONLY
+setInterval(async () => {
+  const channel = "mama";
+
+  try {
+    const api = await fetch(`https://kick.com/api/v2/channels/${channel}`);
+    console.log("API status:", api.status);
+
+    const html = await fetch(`https://kick.com/${channel}`);
+    console.log("HTML status:", html.status);
+
+  } catch (err) {
+    console.log("ERROR:", err.message);
+  }
+
+}, 5000);
