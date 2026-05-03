@@ -34,6 +34,26 @@ let stateMemory = {};
 
 let commentPool = {};
 let channelContext = {};
+// 🔥 COMMENT MEMORY (FIX)
+let commentHistory = {};
+
+function isDuplicate(channel, text) {
+  if (!commentHistory[channel]) {
+    commentHistory[channel] = [];
+  }
+
+  const history = commentHistory[channel];
+
+  if (history.includes(text)) return true;
+
+  history.push(text);
+
+  if (history.length > 40) {
+    history.shift();
+  }
+
+  return false;
+}
 
 const POOL_SIZE = 30;
 const REFILL_THRESHOLD = 10;
