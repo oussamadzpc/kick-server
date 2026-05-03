@@ -82,7 +82,7 @@ async function checkLiveFromHTML(channel) {
     if (
       html.includes('"isLive":true') ||
       html.includes('"is_live":true') ||
-      html.includes('livestream')
+     
     ) {
       return true;
     }
