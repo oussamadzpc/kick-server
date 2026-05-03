@@ -565,7 +565,7 @@ app.listen(PORT, () => {
 // =======================
 // 🔥 TEST ONLY
 setInterval(async () => {
-  const channel = "mama";
+  const channel = "badrik28";
 
   try {
     const api = await fetch(`https://kick.com/api/v2/channels/${channel}`);
