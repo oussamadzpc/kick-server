@@ -554,8 +554,9 @@ app.post("/admin/update", async (req, res) => {
 
     return res.json({ ok: true });
 
-  } catch {
-    return res.json({ ok: false });
+ } catch (err) {
+  return res.json({ ok: false });
+}
   }
 });
 app.listen(PORT, () => {
