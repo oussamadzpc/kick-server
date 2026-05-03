@@ -61,7 +61,7 @@ const AI_COOLDOWN = 10000;
 
 // 🔥 NEW THRESHOLDS
 const LIVE_CONFIRM = 2;
-const OFFLINE_CONFIRM = 3;
+const OFFLINE_CONFIRM = 5;
 
 // =======================
 function normalize(str) {
