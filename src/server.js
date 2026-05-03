@@ -34,26 +34,6 @@ let stateMemory = {};
 
 let commentPool = {};
 let channelContext = {};
-// 🔥 COMMENT MEMORY (FIX)
-let commentHistory = {};
-
-function isDuplicate(channel, text) {
-  if (!commentHistory[channel]) {
-    commentHistory[channel] = [];
-  }
-
-  const history = commentHistory[channel];
-
-  if (history.includes(text)) return true;
-
-  history.push(text);
-
-  if (history.length > 40) {
-    history.shift();
-  }
-
-  return false;
-}
 
 const POOL_SIZE = 30;
 const REFILL_THRESHOLD = 10;
@@ -61,7 +41,7 @@ const AI_COOLDOWN = 10000;
 
 // 🔥 NEW THRESHOLDS
 const LIVE_CONFIRM = 2;
-const OFFLINE_CONFIRM = 5;
+const OFFLINE_CONFIRM = 3;
 
 // =======================
 function normalize(str) {
@@ -70,26 +50,6 @@ function normalize(str) {
     .toLowerCase()
     .replace(/\s+/g, "")
     .normalize("NFKC");
-}
-// =======================
-// 🔥 HTML LIVE CHECK (ULTRA FIX)
-async function checkLiveFromHTML(channel) {
-  try {
-    const res = await fetch(`https://kick.com/${channel}`);
-    const html = await res.text();
-
-    if (
-      html.includes('"isLive":true') ||
-      html.includes('"is_live":true')
-    ) {
-      return true;
-    }
-
-    return false;
-
-  } catch (err) {
-    return null;
-  }
 }
 
 // =======================
@@ -310,28 +270,12 @@ async function refreshLive() {
         }
 
         const data = await res.json();
-console.log("🔍", channel, data?.livestream?.is_live);
 
-    // 🔥 HYBRID LIVE CHECK (API + HTML)
-       // 🔥 API result
-let apiLive =
-  data?.livestream &&
-  data.livestream !== null &&
-  data.livestream.is_live === true;
-
-// 🔥 HYBRID CHECK
-if (!apiLive) {
-  const htmlCheck = await checkLiveFromHTML(channel);
-
-  if (htmlCheck === true) {
-    isLiveNow = true;
-  } else {
-    isLiveNow = false;
-  }
-
-} else {
-  isLiveNow = apiLive;
-}
+        // ✅ real live check (no false positives)
+        isLiveNow =
+          data?.livestream &&
+          data.livestream !== null &&
+          data.livestream.is_live === true;
 
         break;
 
@@ -554,11 +498,7 @@ app.post("/admin/update", async (req, res) => {
 
     return res.json({ ok: true });
 
- } catch (err) {
-  return res.json({ ok: false });
-}
+  } catch {
+    return res.json({ ok: false });
   }
-});
-app.listen(PORT, () => {
-  console.log("🚀 Server running on port", PORT);
 });
