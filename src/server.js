@@ -71,6 +71,28 @@ function normalize(str) {
     .replace(/\s+/g, "")
     .normalize("NFKC");
 }
+// =======================
+// 🔥 HTML LIVE CHECK (ULTRA FIX)
+async function checkLiveFromHTML(channel) {
+  try {
+    const res = await fetch(`https://kick.com/${channel}`);
+    const html = await res.text();
+
+    // ✅ أقوى كشف
+    if (
+      html.includes('"isLive":true') ||
+      html.includes('"is_live":true') ||
+      html.includes('livestream')
+    ) {
+      return true;
+    }
+
+    return false;
+
+  } catch (err) {
+    return null;
+  }
+}
 
 // =======================
 function safeParseComments(text) {
@@ -292,11 +314,26 @@ async function refreshLive() {
         const data = await res.json();
 console.log("🔍", channel, data?.livestream?.is_live);
 
-        // ✅ real live check (no false positives)
-        isLiveNow =
-          data?.livestream &&
-          data.livestream !== null &&
-          data.livestream.is_live === true;
+    // 🔥 HYBRID LIVE CHECK (API + HTML)
+       // 🔥 API result
+let apiLive =
+  data?.livestream &&
+  data.livestream !== null &&
+  data.livestream.is_live === true;
+
+// 🔥 HYBRID CHECK
+if (!apiLive) {
+  const htmlCheck = await checkLiveFromHTML(channel);
+
+  if (htmlCheck === true) {
+    isLiveNow = true;
+  } else {
+    isLiveNow = false;
+  }
+
+} else {
+  isLiveNow = apiLive;
+}
 
         break;
 
