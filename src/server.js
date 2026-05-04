@@ -39,6 +39,8 @@ let commentHistory = {};
 
 // 🔥 NEW: Settings Memory per Channel
 let channelSettings = {};
+// 🔥 Pool Settings to avoid mixing
+let poolSettings = {};
 
 function isDuplicate(channel, text) {
   if (!commentHistory[channel]) {
@@ -138,8 +140,8 @@ async function generateComments(channel) {
     const title = ctx.title || "fun stream";
     const chat = (ctx.chatSample || []).slice(0, 8);
     
-    // 🔥 Get settings for this channel
-    const settings = channelSettings[channel] || { style: 'ar', arabicType: 'darija', country: 'dz', persona: 'normal' };
+    // 🔥 Get EXACT settings used when this pool was requested
+    const settings = poolSettings[channel] || channelSettings[channel] || { style: 'ar', arabicType: 'darija', country: 'dz', persona: 'normal' };
 
     const chatExamples = chat.length
       ? chat.map(x => "- " + x).join("\n")
@@ -150,19 +152,19 @@ async function generateComments(channel) {
     if (settings.style === 'ar') {
         if (settings.arabicType === 'darija') {
             const countryMap = {
-                'dz': 'الجزائرية (Darija Algeria)',
-                'ma': 'المغربية (Darija Morocco)',
-                'tn': 'التونسية (Darija Tunisia)',
-                'eg': 'المصرية (Egyptian Arabic)',
-                'sa': 'السعودية (Saudi Arabic)',
-                'jo': 'الأردنية (Jordanian Arabic)',
-                'ly': 'الليبية (Libyan Arabic)',
-                'me': 'دول الشرق الأوسط (Levantine/Middle East Arabic)',
-                'gcc': 'دول الخليج (Khaleeji Arabic)'
+                'dz': 'الجزائرية (Algerian Darija) - Use words like: وشراك، صحيت، واه',
+                'ma': 'المغربية (Moroccan Darija) - Use words like: دبا، خاي، مزيان',
+                'tn': 'التونسية (Tunisian Darija) - Use words like: شنية، باهي، عيشك',
+                'eg': 'المصرية (Egyptian Arabic) - Use words like: يا باشا، منور، عامل ايه',
+                'sa': 'السعودية (Saudi Arabic) - Use words like: يا هلا، ابشر، وش لونك',
+                'jo': 'الأردنية (Jordanian Arabic) - Use words like: يا غالي، هلا والله',
+                'ly': 'الليبية (Libyan Arabic) - Use words like: شن الجو، يا طيري',
+                'me': 'دول الشرق الأوسط (Levantine) - Use words like: شو الأخبار، منور يا بطل',
+                'gcc': 'دول الخليج (Khaleeji) - Use words like: يا خوي، كفو، ما قصرت'
             };
-            languageInstruction = `Write in Arabic Dialect (Darija) specifically from: ${countryMap[settings.country] || 'Algeria'}.`;
+            languageInstruction = `CRITICAL: You MUST write ONLY in the ${countryMap[settings.country] || 'Algerian Darija'} dialect. DO NOT use Standard Arabic or other dialects.`;
         } else if (settings.arabicType === 'franco') {
-            languageInstruction = "Write in Franco-Arabic (Arabic using English letters and numbers, e.g., '7alwa', '3amel eh').";
+            languageInstruction = "CRITICAL: Write ONLY in Franco-Arabic (Arabic using English letters and numbers, e.g., '3amel eh', '7abibi'). DO NOT use Arabic script.";
         } else {
             languageInstruction = "Write in Modern Standard Arabic (فصحى).";
         }
@@ -176,27 +178,30 @@ async function generateComments(channel) {
 
     // 🔥 Add Persona instruction
     let personaInstruction = "";
-    if (settings.persona === 'excited') personaInstruction = "Be extremely excited, use lots of emojis, and hype the streamer.";
-    if (settings.persona === 'critical') personaInstruction = "Be slightly critical, sarcastic, or questioning. Use realistic gamer skepticism.";
-    if (settings.persona === 'funny') personaInstruction = "Be funny, use jokes, and make light-hearted comments.";
-    if (settings.persona === 'normal') personaInstruction = "Be a normal, friendly viewer.";
+    if (settings.persona === 'excited') personaInstruction = "Persona: Extremely excited fan. Use lots of emojis (🔥, 🚀, ❤️) and hype words.";
+    if (settings.persona === 'critical') personaInstruction = "Persona: Critical/Sarcastic gamer. Be slightly skeptical or mock the mistakes in a funny way.";
+    if (settings.persona === 'funny') personaInstruction = "Persona: The Joker. Use jokes, funny reactions, and 'lol' style comments.";
+    if (settings.persona === 'normal') personaInstruction = "Persona: Casual friendly viewer.";
 
     const prompt = `
-You are a real viewer in a Kick live chat.
-${languageInstruction}
-${personaInstruction}
+You are a REAL human viewer in a Kick live chat.
+STRICT LANGUAGE RULE: ${languageInstruction}
+STRICT PERSONA: ${personaInstruction}
 
-CRITICAL: YOU ONLY WRITE SHORT CHAT MESSAGES (max 10 words).
-NEVER mention you are an AI. NEVER output anything except the JSON.
+RULES:
+1. Write ONLY short, natural chat messages (1-6 words).
+2. NEVER repeat the same message.
+3. NEVER say you are an AI or bot.
+4. ONLY return a JSON array of objects.
 
 Channel: ${channel}
 Title: ${title}
 
-Examples of current chat:
+Current Chat Vibe:
 ${chatExamples}
 
-Return JSON format only:
-[{"text":"comment 1"}, {"text":"comment 2"}, ...]
+Output JSON:
+[{"text":"..."}]
 `;
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -255,7 +260,7 @@ async function refillPool(channel) {
 }
 
 // =======================
-app.post("/context", (req, res) => {
+app.post("/context", async (req, res) => {
   try {
     const { channel, title, chatSample, settings } = req.body;
 
@@ -271,6 +276,15 @@ app.post("/context", (req, res) => {
         channelSettings[channel] = settings;
     }
 
+    // 🔥 NEW: If this is a new channel, add it to tracking IMMEDIATELY
+    const cleanChannel = normalize(channel);
+    if (!cachedChannels.includes(cleanChannel)) {
+        console.log("🆕 New channel from context, adding to tracking:", cleanChannel);
+        cachedChannels.push(cleanChannel);
+        // Force an immediate live check for this specific channel
+        await checkAndNotifySingleChannel(cleanChannel);
+    }
+
     return res.json({ ok: true });
 
   } catch (err) {
@@ -279,19 +293,45 @@ app.post("/context", (req, res) => {
   }
 });
 
+// 🔥 Helper for immediate single channel check
+async function checkAndNotifySingleChannel(channel) {
+    if (!stateMemory[channel]) {
+        stateMemory[channel] = { live: false, success: 0, fail: 0 };
+    }
+    
+    let isLiveNow = false;
+    try {
+        const res = await fetch(`https://kick.com/api/v2/channels/${channel}`);
+        if (res.ok) {
+            const data = await res.json();
+            let apiLive = data?.livestream?.is_live === true;
+            if (!apiLive) {
+                isLiveNow = await checkLiveFromHTML(channel) === true;
+            } else {
+                isLiveNow = true;
+            }
+        }
+    } catch {}
+
+    stateMemory[channel].live = isLiveNow;
+    liveCache[channel] = isLiveNow;
+}
+
 // =======================
 app.get("/get-comment", async (req, res) => {
   try {
     const channel = req.query.channel || "general";
     
-    // 🔥 Update settings from query params
+    // 🔥 Update and LOCK settings for this specific request
     if (req.query.style) {
-        channelSettings[channel] = {
+        const currentReqSettings = {
             style: req.query.style,
             arabicType: req.query.arabicType,
             country: req.query.country,
             persona: req.query.persona
         };
+        channelSettings[channel] = currentReqSettings;
+        poolSettings[channel] = currentReqSettings; // Lock settings for the next AI generation
     }
 
     if (!commentPool[channel] || commentPool[channel].queue.length === 0) {
