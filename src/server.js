@@ -1,4 +1,3 @@
-
 import fetch from "node-fetch";
 import express from "express";
 import cors from "cors";
@@ -86,6 +85,7 @@ async function getChannelSettings(channel) {
 );
 
     const data = await r.json();
+console.log("📦 USERS FROM SUPABASE:", data);
 
     if (!data || !data.length) return {};
 
