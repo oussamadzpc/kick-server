@@ -1,4 +1,4 @@
-console.log("🔑 SUPABASE KEY:", SUPABASE_KEY ? "OK" : "MISSING");
+
 import fetch from "node-fetch";
 import express from "express";
 import cors from "cors";
@@ -11,6 +11,7 @@ const PORT = process.env.PORT || 3000;
 
 const SUPABASE_URL = "https://pdgglivspfctmzbjpqjm.supabase.co";
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
+console.log("🔑 SUPABASE KEY:", SUPABASE_KEY ? "OK" : "MISSING");
 const ADMIN_KEY = process.env.ADMIN_KEY || "2107";
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
