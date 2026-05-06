@@ -263,26 +263,6 @@ async function refillPool(channel) {
 }
 
 // =======================
-app.post("/context", (req, res) => {
-  try {
-    const { channel, title, chatSample } = req.body;
-
-    if (!channel) return res.json({ ok: false });
-
-    channelContext[channel] = {
-      title: title || "",
-      chatSample: Array.isArray(chatSample) ? chatSample : []
-    };
-
-    return res.json({ ok: true });
-
-  } catch (err) {
-    console.log("❌ context error:", err.message);
-    return res.json({ ok: false });
-  }
-});
-
-// =======================
 app.get("/get-comment", async (req, res) => {
   try {
     const channel = req.query.channel || "general";
@@ -298,7 +278,12 @@ app.get("/get-comment", async (req, res) => {
       refillPool(channel);
     }
 
-    const comment = pool.queue.shift() || "nice 🔥";
+    const item = pool.queue.shift();
+
+    const comment =
+      typeof item === "string"
+        ? item
+        : item?.text || "nice 🔥";
 
     return res.json({ comment });
 
