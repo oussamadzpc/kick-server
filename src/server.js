@@ -1,4 +1,3 @@
-console.log("🚨 generateComments CALLED for:", channel);
 import fetch from "node-fetch";
 import express from "express";
 import cors from "cors";
@@ -153,6 +152,7 @@ function fallbackComments() {
 
 // =======================
 async function generateComments(channel) {
+console.log("🚨 generateComments CALLED for:", channel);
   try {
     if (!GROQ_API_KEY) return fallbackComments();
 
