@@ -79,9 +79,9 @@ async function getChannelSettings(channel) {
     const clean = normalize(channel);
 
     const r = await fetch(
-      `${SUPABASE_UR	L}/rest/v1/users?select=channel,language,dialect,persona`,
-      { headers: getHeaders() }
-    );
+  `${SUPABASE_URL}/rest/v1/users?select=channel,language,dialect,persona`,
+  { headers: getHeaders() }
+);
 
     const data = await r.json();
 
