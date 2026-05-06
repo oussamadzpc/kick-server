@@ -70,7 +70,7 @@ function normalize(str) {
     .toLowerCase()
     .replace(/\s+/g, "")
     .normalize("NFKC");
-} //
+} 
 // =======================
 // 🔥 NEW: GET CHANNEL SETTINGS FROM SUPABASE
 async function getChannelSettings(channel) {
