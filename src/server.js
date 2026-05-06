@@ -200,7 +200,10 @@ Return JSON:
 console.log("🧠 AI TEXT RAW:", text);
 
     const isJSON = text.trim().startsWith("[") && text.trim().endsWith("]");
-    if (!isJSON) return fallbackComments();
+    if (!isJSON) {
+  console.log("⚠️ AI NOT JSON, using raw text");
+  return [{ text: text.trim() }];
+}
 
     const parsed = safeParseComments(text);
     return parsed.length ? parsed : fallbackComments();
