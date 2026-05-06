@@ -149,6 +149,10 @@ async function generateComments(channel) {
     const chat = (ctx.chatSample || []).slice(0, 8);
 // 🔥 NEW: LOAD CHANNEL SETTINGS
 const settings = await getChannelSettings(channel);
+// 🔒 ONLY COMMENT FOR OWNED CHANNELS
+if (!settings || !settings.language) {
+  return [];
+}
 
 const language = settings.language || "any";
 const dialect = settings.dialect || "none";
@@ -176,20 +180,14 @@ ${chatExamples}
 Return JSON:
 [{"text":"..."}]
 `;
-
-const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "Authorization": "Bearer " + GROQ_API_KEY
-  },
-  body: JSON.stringify({
-    model: "llama-3.1-8b-instant",
-    messages: [{ role: "user", content: prompt }],
-    temperature: 0.9,
-    max_tokens: 400
-  })
-});
+      },
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.9,
+        max_tokens: 400
+      })
+    });
 
     const data = await response.json();
     const text = data?.choices?.[0]?.message?.content || "";
