@@ -1,3 +1,4 @@
+console.log("🔥 NEW VERSION LOADED");
 import fetch from "node-fetch";
 import express from "express";
 import cors from "cors";
