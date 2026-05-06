@@ -77,7 +77,7 @@ function normalize(str) {
 async function getChannelSettings(channel) {
   try {
     const r = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?channel=eq.${channel}&select=language,dialect,persona`,
+  `${SUPABASE_URL}/rest/v1/users?channel=ilike.${channel}&select=language,dialect,persona`,
       { headers: getHeaders() }
     );
 
@@ -150,10 +150,10 @@ async function generateComments(channel) {
 
     const settings = await getChannelSettings(channel);
 
-    if (!settings || !settings.language) {
-      return [];
-    }
-
+if (!settings || !settings.language) {
+  console.log("⚠️ No settings found for channel:", channel);
+  return fallbackComments();
+}
     const language = settings.language || "any";
     const dialect = settings.dialect || "none";
     const persona = settings.persona || "normal";
