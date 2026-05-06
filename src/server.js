@@ -176,7 +176,6 @@ ${chatExamples}
 Return JSON:
 [{"text":"..."}]
 `;
-      },
       body: JSON.stringify({
         model: "llama-3.1-8b-instant",
         messages: [{ role: "user", content: prompt }],
