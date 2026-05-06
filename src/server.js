@@ -70,6 +70,7 @@ function normalize(str) {
     .toLowerCase()
     .replace(/\s+/g, "")
     .normalize("NFKC");
+} //
 // =======================
 // 🔥 NEW: GET CHANNEL SETTINGS FROM SUPABASE
 async function getChannelSettings(channel) {
@@ -152,11 +153,11 @@ const language = settings.language || "any";
 const dialect = settings.dialect || "none";
 const persona = settings.persona || "normal";
 
-    const chatExamples = chat.length
-      ? chat.map(x => "- " + x).join("\n")
-      : "- gg\n- nice\n- lol 😂";
+  const chatExamples = chat.length
+  ? chat.map(x => "- " + x).join("\n")
+  : "- gg\n- nice\n- lol 😂";
 
-   const prompt = `
+const prompt = `
 You are a real viewer in a Kick live chat.
 
 You ONLY write short chat messages.
@@ -174,24 +175,6 @@ ${chatExamples}
 Return JSON:
 [{"text":"..."}]
 `;
-
-You ONLY write short chat messages.
-
-Channel: ${channel}
-Title: ${title}
-
-Examples:
-${chatExamples}
-
-Return JSON:
-[{"text":"..."}]
-`;
-
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + GROQ_API_KEY
       },
       body: JSON.stringify({
         model: "llama-3.1-8b-instant",
