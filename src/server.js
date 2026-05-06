@@ -279,20 +279,23 @@ app.get("/get-comment", async (req, res) => {
   try {
     const channel = req.query.channel || "general";
 
-    console.log("📩 /get-comment called for:", channel); // ✅ هنا
+    console.log("📩 /get-comment called for:", channel);
 
     if (!commentPool[channel]) {
-      console.log("🆕 creating new pool for:", channel); // ✅
       commentPool[channel] = { queue: [], lastFetch: 0 };
-      await refillPool(channel);
     }
 
     const pool = commentPool[channel];
 
-    console.log("📦 pool size:", pool.queue.length); // ✅ مهم جداً
+    // 🔥 أهم تعديل
+    if (pool.queue.length === 0) {
+      console.log("⚡ EMPTY → FORCE GENERATE");
+
+      const newComments = await generateComments(channel);
+      pool.queue.push(...newComments);
+    }
 
     if (pool.queue.length < REFILL_THRESHOLD) {
-      console.log("♻️ refilling pool...");
       refillPool(channel);
     }
 
