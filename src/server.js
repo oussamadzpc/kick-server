@@ -1,3 +1,4 @@
+console.log("🔑 GROQ KEY VALUE:", process.env.GROQ_API_KEY);
 import fetch from "node-fetch";
 import express from "express";
 import cors from "cors";
