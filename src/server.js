@@ -76,8 +76,10 @@ function normalize(str) {
 // 🔥 NEW: GET CHANNEL SETTINGS FROM SUPABASE
 async function getChannelSettings(channel) {
   try {
+    const clean = normalize(channel);
+
     const r = await fetch(
-  `${SUPABASE_URL}/rest/v1/users?channel=ilike.${channel}&select=language,dialect,persona`,
+      `${SUPABASE_UR	L}/rest/v1/users?select=channel,language,dialect,persona`,
       { headers: getHeaders() }
     );
 
@@ -85,7 +87,14 @@ async function getChannelSettings(channel) {
 
     if (!data || !data.length) return {};
 
-    return data[0];
+    const found = data.find(u => normalize(u.channel) === clean);
+
+    if (!found) {
+      console.log("❌ No match in DB for:", channel);
+      return {};
+    }
+
+    return found;
 
   } catch (err) {
     console.log("❌ settings fetch error:", err.message);
