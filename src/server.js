@@ -1,4 +1,3 @@
-console.log("🔑 GROQ KEY VALUE:", process.env.GROQ_API_KEY);
 import fetch from "node-fetch";
 import express from "express";
 import cors from "cors";
@@ -198,6 +197,7 @@ Return JSON:
 
     const data = await response.json();
     const text = data?.choices?.[0]?.message?.content || "";
+console.log("🧠 AI TEXT RAW:", text);
 
     const isJSON = text.trim().startsWith("[") && text.trim().endsWith("]");
     if (!isJSON) return fallbackComments();
