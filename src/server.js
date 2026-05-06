@@ -203,7 +203,6 @@ let finalComments = [];
 
 const isJSON = text.trim().startsWith("[") && text.trim().endsWith("]");
 
-// ✅ إذا JSON → حاول parse
 if (isJSON) {
   try {
     const parsed = safeParseComments(text);
@@ -215,18 +214,17 @@ if (isJSON) {
   }
 }
 
-// ✅ إذا مش JSON أو parsing فشل → استخدم النص مباشرة
 if (!finalComments.length && text.trim()) {
   console.log("⚠️ Using RAW AI text");
-  const lines = text
-  .split("\n")
-  .map(t => t.trim())
-  .filter(t => t.length > 0 && t.length < 120);
 
-finalComments = lines.map(t => ({ text: t }));
+  const lines = text
+    .split("\n")
+    .map(t => t.trim())
+    .filter(t => t.length > 0 && t.length < 120);
+
+  finalComments = lines.map(t => ({ text: t }));
 }
 
-// ❗ fallback فقط إذا فاضي 100%
 if (!finalComments.length) {
   finalComments = fallbackComments();
 }
