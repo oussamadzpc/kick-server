@@ -1,5 +1,3 @@
-console.log("🔑 KEY:", process.env.GROQ_API_KEY);
-console.log("🔥 NEW VERSION LOADED");
 import fetch from "node-fetch";
 import express from "express";
 import cors from "cors";
@@ -201,10 +199,41 @@ Return JSON:
     const text = data?.choices?.[0]?.message?.content || "";
 console.log("🧠 AI TEXT RAW:", text);
 
-    const isJSON = text.trim().startsWith("[") && text.trim().endsWith("]");
-    if (!isJSON) {
-  console.log("⚠️ AI NOT JSON, using raw text");
-  return [{ text: text.trim() }];
+let finalComments = [];
+
+const isJSON = text.trim().startsWith("[") && text.trim().endsWith("]");
+
+// ✅ إذا JSON → حاول parse
+if (isJSON) {
+  try {
+    const parsed = safeParseComments(text);
+    if (parsed.length) {
+      finalComments = parsed;
+    }
+  } catch (e) {
+    console.log("❌ JSON parse failed");
+  }
+}
+
+// ✅ إذا مش JSON أو parsing فشل → استخدم النص مباشرة
+if (!finalComments.length && text.trim()) {
+  console.log("⚠️ Using RAW AI text");
+  const lines = text
+  .split("\n")
+  .map(t => t.trim())
+  .filter(t => t.length > 0 && t.length < 120);
+
+finalComments = lines.map(t => ({ text: t }));
+}
+
+// ❗ fallback فقط إذا فاضي 100%
+if (!finalComments.length) {
+  finalComments = fallbackComments();
+}
+
+console.log("🚀 FINAL COMMENTS:", finalComments);
+
+return finalComments;
 }
 
     const parsed = safeParseComments(text);
