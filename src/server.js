@@ -147,22 +147,22 @@ async function generateComments(channel) {
     const ctx = channelContext[channel] || {};
     const title = ctx.title || "fun stream";
     const chat = (ctx.chatSample || []).slice(0, 8);
-// 🔥 NEW: LOAD CHANNEL SETTINGS
-const settings = await getChannelSettings(channel);
-// 🔒 ONLY COMMENT FOR OWNED CHANNELS
-if (!settings || !settings.language) {
-  return [];
-}
 
-const language = settings.language || "any";
-const dialect = settings.dialect || "none";
-const persona = settings.persona || "normal";
+    const settings = await getChannelSettings(channel);
 
-  const chatExamples = chat.length
-  ? chat.map(x => "- " + x).join("\n")
-  : "- gg\n- nice\n- lol 😂";
+    if (!settings || !settings.language) {
+      return [];
+    }
 
-const prompt = `
+    const language = settings.language || "any";
+    const dialect = settings.dialect || "none";
+    const persona = settings.persona || "normal";
+
+    const chatExamples = chat.length
+      ? chat.map(x => "- " + x).join("\n")
+      : "- gg\n- nice\n- lol 😂";
+
+    const prompt = `
 You are a real viewer in a Kick live chat.
 
 You ONLY write short chat messages.
@@ -181,19 +181,19 @@ Return JSON:
 [{"text":"..."}]
 `;
 
-const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "Authorization": "Bearer " + GROQ_API_KEY
-  },
-  body: JSON.stringify({
-    model: "llama-3.1-8b-instant",
-    messages: [{ role: "user", content: prompt }],
-    temperature: 0.9,
-    max_tokens: 400
-  })
-});
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + GROQ_API_KEY
+      },
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.9,
+        max_tokens: 400
+      })
+    });
 
     const data = await response.json();
     const text = data?.choices?.[0]?.message?.content || "";
@@ -209,7 +209,6 @@ const response = await fetch("https://api.groq.com/openai/v1/chat/completions", 
     return fallbackComments();
   }
 }
-
 // =======================
 async function refillPool(channel) {
   if (!commentPool[channel]) {
