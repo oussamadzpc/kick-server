@@ -197,45 +197,42 @@ Return JSON:
 
     const data = await response.json();
     const text = data?.choices?.[0]?.message?.content || "";
-console.log("🧠 AI TEXT RAW:", text);
 
-let finalComments = [];
+    console.log("🧠 AI TEXT RAW:", text);
 
-const isJSON = text.trim().startsWith("[") && text.trim().endsWith("]");
+    let finalComments = [];
 
-if (isJSON) {
-  try {
-    const parsed = safeParseComments(text);
-    if (parsed.length) {
-      finalComments = parsed;
+    const isJSON = text.trim().startsWith("[") && text.trim().endsWith("]");
+
+    if (isJSON) {
+      try {
+        const parsed = safeParseComments(text);
+        if (parsed.length) {
+          finalComments = parsed;
+        }
+      } catch (e) {
+        console.log("❌ JSON parse failed");
+      }
     }
-  } catch (e) {
-    console.log("❌ JSON parse failed");
-  }
-}
 
-if (!finalComments.length && text.trim()) {
-  console.log("⚠️ Using RAW AI text");
+    if (!finalComments.length && text.trim()) {
+      console.log("⚠️ Using RAW AI text");
 
-  const lines = text
-    .split("\n")
-    .map(t => t.trim())
-    .filter(t => t.length > 0 && t.length < 120);
+      const lines = text
+        .split("\n")
+        .map(t => t.trim())
+        .filter(t => t.length > 0 && t.length < 120);
 
-  finalComments = lines.map(t => ({ text: t }));
-}
+      finalComments = lines.map(t => ({ text: t }));
+    }
 
-if (!finalComments.length) {
-  finalComments = fallbackComments();
-}
+    if (!finalComments.length) {
+      finalComments = fallbackComments();
+    }
 
-console.log("🚀 FINAL COMMENTS:", finalComments);
+    console.log("🚀 FINAL COMMENTS:", finalComments);
 
-return finalComments;
-}
-
-    const parsed = safeParseComments(text);
-    return parsed.length ? parsed : fallbackComments();
+    return finalComments;
 
   } catch (err) {
     console.log("❌ AI error:", err.message);
