@@ -176,13 +176,20 @@ ${chatExamples}
 Return JSON:
 [{"text":"..."}]
 `;
-      body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.9,
-        max_tokens: 400
-      })
-    });
+
+const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer " + GROQ_API_KEY
+  },
+  body: JSON.stringify({
+    model: "llama-3.1-8b-instant",
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0.9,
+    max_tokens: 400
+  })
+});
 
     const data = await response.json();
     const text = data?.choices?.[0]?.message?.content || "";
