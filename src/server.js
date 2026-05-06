@@ -1,3 +1,4 @@
+console.log("🔑 KEY:", process.env.GROQ_API_KEY);
 console.log("🔥 NEW VERSION LOADED");
 import fetch from "node-fetch";
 import express from "express";
