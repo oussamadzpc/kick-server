@@ -241,66 +241,64 @@ Return ONLY valid JSON:
     });
 
     const data = await response.json();
-    const text = data?.choices?.[0]?.message?.content || "";
+const text = data?.choices?.[0]?.message?.content || "";
 
-    console.log("🧠 AI TEXT RAW:", text);
+console.log("🧠 AI TEXT RAW:", text);
 
-    let finalComments = [];
+let finalComments = [];
 
-    const isJSON = text.trim().startsWith("[") && text.trim().endsWith("]");
+try {
 
-    if (isJSON) {
-      try {
-        const parsed = safeParseComments(text);
-        if (parsed.length) {
-          finalComments = parsed;
-        }
-      } catch (e) {
-        console.log("❌ JSON parse failed");
+  const isJSON = text.trim().startsWith("[") && text.trim().endsWith("]");
+
+  if (isJSON) {
+    try {
+      const parsed = safeParseComments(text);
+      if (parsed.length) {
+        finalComments = parsed;
       }
+    } catch (e) {
+      console.log("❌ JSON parse failed");
     }
-  try {
- if (!finalComments.length && text.trim()) {
-  console.log("⚠️ Using RAW AI text");
-
-const lines = text
-  .split("\n")
-  .map(t => t.trim())
-  .filter(t =>
-    t.length > 2 &&
-    t.length < 60 &&
-    !t.includes("undefined") &&
-    !t.includes("null")
-  );
-
-const isArabicMode = language_mode === "arabic";
-const isDarija = arabic_type === "darija";
-
-// 🔥 فلترة الفرانكو فقط في الدارجة
-const cleaned = lines.filter(t => {
-
-  if (isArabicMode && isDarija) {
-    // يقبل فقط العربية الحقيقية
-    return /[\u0600-\u06FF]/.test(t);
   }
 
-  return true;
-});
+  if (!finalComments.length && text.trim()) {
+    console.log("⚠️ Using RAW AI text");
 
-// 🔥 هذا هو المهم (لازم يكون موجود)
-finalComments = cleaned.map(t => ({ text: t }));
+    const lines = text
+      .split("\n")
+      .map(t => t.trim())
+      .filter(t =>
+        t.length > 2 &&
+        t.length < 60 &&
+        !t.includes("undefined") &&
+        !t.includes("null")
+      );
+
+    const isArabicMode = language_mode === "arabic";
+    const isDarija = arabic_type === "darija";
+
+    const cleaned = lines.filter(t => {
+      if (isArabicMode && isDarija) {
+        return /[\u0600-\u06FF]/.test(t);
+      }
+      return true;
+    });
+
+    finalComments = cleaned.map(t => ({ text: t }));
 
     if (!finalComments.length) {
       finalComments = fallbackComments();
     }
 
     console.log("🚀 FINAL COMMENTS:", finalComments);
+  }
 
-    return finalComments;
+  return finalComments;
 
-  } catch (err) {
-    console.log("❌ AI error:", err.message);
-    return fallbackComments();
+} catch (err) {
+  console.log("❌ AI error:", err.message);
+  return fallbackComments();
 }
 // =======================
 async function refillPool(channel) {
