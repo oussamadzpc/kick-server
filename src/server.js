@@ -80,23 +80,25 @@ async function getChannelSettings(channel) {
     const clean = normalize(channel);
 
     const r = await fetch(
-  `${SUPABASE_URL}/rest/v1/users?select=channel,language,dialect,persona`,
-  { headers: getHeaders() }
-);
+      `${SUPABASE_URL}/rest/v1/users?channel=eq.${clean}&select=preferred_style,preferred_arabic_type,preferred_country,preferred_persona`,
+      { headers: getHeaders() }
+    );
 
     const data = await r.json();
-console.log("📦 USERS FROM SUPABASE:", data);
 
-    if (!data || !data.length) return {};
-
-    const found = data.find(u => normalize(u.channel) === clean);
-
-    if (!found) {
-      console.log("❌ No match in DB for:", channel);
+    if (!data || !data.length) {
+      console.log("❌ No settings for:", channel);
       return {};
     }
 
-    return found;
+    const user = data[0];
+
+    return {
+      style: user.preferred_style,
+      dialect: user.preferred_arabic_type,
+      country: user.preferred_country,
+      persona: user.preferred_persona
+    };
 
   } catch (err) {
     console.log("❌ settings fetch error:", err.message);
@@ -162,13 +164,15 @@ console.log("🚨 generateComments CALLED for:", channel);
 
     const settings = await getChannelSettings(channel);
 
-if (!settings || !settings.language) {
+if (!settings || !settings.style) {
   console.log("⚠️ No settings found for channel:", channel);
   return fallbackComments();
 }
-    const language = settings.language || "any";
-    const dialect = settings.dialect || "none";
-    const persona = settings.persona || "normal";
+
+const style = settings.style || "any";
+const dialect = settings.dialect || "none";
+const country = settings.country || "global";
+const persona = settings.persona || "normal";
 
     const chatExamples = chat.length
       ? chat.map(x => "- " + x).join("\n")
@@ -182,8 +186,9 @@ You ONLY write short chat messages.
 Channel: ${channel}
 Title: ${title}
 
-Language: ${language}
+Style: ${style}
 Dialect: ${dialect}
+Country: ${country}
 Persona: ${persona}
 
 Examples:
@@ -299,9 +304,16 @@ app.get("/get-comment", async (req, res) => {
       refillPool(channel);
     }
 
-    const comment = pool.queue.shift() || "nice 🔥";
+    let comment = pool.queue.shift() || "nice 🔥";
 
-    return res.json({ comment });
+// 🔥 منع التكرار
+let tries = 0;
+while (isDuplicate(channel, comment) && tries < 5) {
+  comment = pool.queue.shift() || "nice 🔥";
+  tries++;
+}
+
+return res.json({ comment });
 
   } catch (err) {
     console.log("❌ comment error:", err.message);
