@@ -167,63 +167,34 @@ console.log("🚨 generateComments CALLED for:", channel);
   try {
     if (!GROQ_API_KEY) return fallbackComments();
 
+    const ctx = channelContext[chasync function generateComments(channel) {
+  console.log("🚨 generateComments CALLED for:", channel);
+
+  try {
+    if (!GROQ_API_KEY) return fallbackComments();
+
     const ctx = channelContext[channel] || {};
-    const title = ctx.title || "fun stream";
     const chat = (ctx.chatSample || []).slice(0, 8);
 
     const settings = await getChannelSettings(channel);
 
-if (!settings || !settings.language_mode) {
-  console.log("⚠️ No settings found for channel:", channel);
-  return fallbackComments();
-}
+    if (!settings || !settings.language_mode) {
+      console.log("⚠️ No settings found for channel:", channel);
+      return fallbackComments();
+    }
 
-const mode = settings.language_mode || "mix";
-const arabicType = settings.arabic_type || "darija";
-const region = settings.region || "me";
-const persona = settings.persona || "normal";
+    const mode = settings.language_mode || "mix";
+    const arabicType = settings.arabic_type || "darija";
+    const region = settings.region || "me";
+    const persona = settings.persona || "normal";
 
     const chatExamples = chat.length
       ? chat.map(x => "- " + x).join("\n")
       : "- gg\n- nice\n- lol 😂";
 
-const prompt = `
+    const prompt = `
 You are a real viewer in a Kick live chat.
-
-STRICT RULES (VERY IMPORTANT):
-- Follow ONLY the selected language_mode.
-- NEVER mix languages unless mode = mix.
-- Write SHORT comments ONLY (2 to 6 words max).
-- Each comment must be clear and meaningful.
-- No random text. No garbage. No repeated words.
-
-Language Mode: ${mode}
-
-If mode = english:
-- Write ONLY English.
-
-If mode = french:
-- Write ONLY French.
-
-If mode = mix:
-- Mix English + French + simple Arabic naturally.
-
-If mode = arabic:
-- Arabic Type: ${arabicType}
-- Region: ${region}
-
-Arabic rules:
-- franco → write Arabic using Latin letters ONLY (Franco-Arabic)
-- darija → write ONLY Arabic script (no Latin letters)
-- Region controls slang style and vocabulary.
-
-Persona: ${persona}
-
-Examples:
-${chatExamples}
-
-Return ONLY valid JSON:
-[{"text":"..."}]
+Return ONLY JSON: [{"text":"..."}]
 `;
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -241,69 +212,65 @@ Return ONLY valid JSON:
     });
 
     const data = await response.json();
-const text = data?.choices?.[0]?.message?.content || "";
+    const text = data?.choices?.[0]?.message?.content || "";
 
-console.log("🧠 AI TEXT RAW:", text);
+    console.log("🧠 AI TEXT RAW:", text);
 
-let finalComments = [];
+    let finalComments = [];
 
-try {
+    const isJSON = text.trim().startsWith("[") && text.trim().endsWith("]");
 
-  const isJSON = text.trim().startsWith("[") && text.trim().endsWith("]");
-
-  if (isJSON) {
-    try {
-      const parsed = safeParseComments(text);
-      if (parsed.length) {
-        finalComments = parsed;
+    if (isJSON) {
+      try {
+        const parsed = safeParseComments(text);
+        if (parsed.length) finalComments = parsed;
+      } catch (e) {
+        console.log("❌ JSON parse failed");
       }
-    } catch (e) {
-      console.log("❌ JSON parse failed");
     }
+
+    if (!finalComments.length && text.trim()) {
+      console.log("⚠️ Using RAW AI text");
+
+      const lines = text
+        .split("\n")
+        .map(t => t.trim())
+        .filter(t =>
+          t.length > 2 &&
+          t.length < 60 &&
+          !t.includes("undefined") &&
+          !t.includes("null")
+        );
+
+      const isArabicMode = mode === "arabic";
+      const isDarija = arabicType === "darija";
+
+      const cleaned = lines.filter(t => {
+        const hasArabic = /[\u0600-\u06FF]/.test(t);
+        const hasLatin = /[a-zA-Z]/.test(t);
+
+        if (isArabicMode && isDarija) {
+          return hasArabic && !hasLatin;
+        }
+
+        return true;
+      });
+
+      finalComments = cleaned.map(t => ({ text: t }));
+
+      if (!finalComments.length) {
+        finalComments = fallbackComments();
+      }
+
+      console.log("🚀 FINAL COMMENTS:", finalComments);
+    }
+
+    return finalComments;
+
+  } catch (err) {
+    console.log("❌ AI error:", err.message);
+    return fallbackComments();
   }
-
-  if (!finalComments.length && text.trim()) {
-    console.log("⚠️ Using RAW AI text");
-
-    const lines = text
-      .split("\n")
-      .map(t => t.trim())
-      .filter(t =>
-        t.length > 2 &&
-        t.length < 60 &&
-        !t.includes("undefined") &&
-        !t.includes("null")
-      );
-const isArabicMode = mode === "arabic";
-const isDarija = arabicType === "darija";
-
-const cleaned = lines.filter(t => {
-
-  const hasArabic = /[\u0600-\u06FF]/.test(t);
-  const hasLatin = /[a-zA-Z]/.test(t);
-
-  if (isArabicMode && isDarija) {
-    // دارجة = لازم عربي فقط + ممنوع لاتيني (فرانكو)
-    return hasArabic && !hasLatin;
-  }
-
-  return true;
-});
-
-finalComments = cleaned.map(t => ({ text: t }));
-
-if (!finalComments.length) {
-  finalComments = fallbackComments();
-}
-
-console.log("🚀 FINAL COMMENTS:", finalComments);
-
-  return finalComments;
-
-} catch (err) {
-  console.log("❌ AI error:", err.message);
-  return fallbackComments();
-}
 }
 // =======================
 // 🔥 REFILL POOL
