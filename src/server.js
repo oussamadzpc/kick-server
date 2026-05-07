@@ -442,7 +442,7 @@ Only pure JSON array.
     return fallbackComments().map(t => ({ text: t }));
   }
 }
-}
+
 // =======================
 // 🔥 REFILL POOL
 async function refillPool(channel) {
