@@ -44,9 +44,11 @@ function isDuplicate(channel, text) {
     commentHistory[channel] = [];
   }
 
-  const history = commentHistory[channel];
+  const normalizedText = normalize(
+    typeof text === "string" ? text : text?.text || ""
+  );
 
-  const normalizedText = normalize(text);
+  const history = commentHistory[channel];
 
   if (history.includes(normalizedText)) {
     return true;
@@ -74,7 +76,7 @@ function normalize(str) {
   return String(str)
     .trim()
     .toLowerCase()
-    .replace(/\s+/g, "")
+    .replace(/\s+/g, " ")
     .normalize("NFKC");
 } 
 // =======================
@@ -133,6 +135,16 @@ async function checkLiveFromHTML(channel) {
 }
 
 // =======================
+
+function cleanText(text) {
+  return String(text || "")
+    .replace(/�/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// =======================
+
 function safeParseComments(text) {
   try {
     const parsed = JSON.parse(text);
@@ -140,7 +152,9 @@ function safeParseComments(text) {
     if (!Array.isArray(parsed)) return [];
 
     return parsed
-      .map(x => x.text)
+  .map(x =>
+  cleanText(typeof x === "string" ? x : x?.text)
+)
       .filter(t => typeof t === "string" && t.length > 1 && t.length < 80);
 
   } catch (err) {
@@ -228,6 +242,12 @@ ${chatExamples}
 
 Return ONLY valid JSON:
 [{"text":"..."}]
+
+No explanations.
+No markdown.
+No numbering.
+No extra text.
+Only pure JSON array.
 `;
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -251,47 +271,25 @@ Return ONLY valid JSON:
 
     let finalComments = [];
 
-    const isJSON = text.trim().startsWith("[") && text.trim().endsWith("]");
+   const isJSON =
+  text.trim().startsWith("[") &&
+  text.trim().endsWith("]");
 
-    if (isJSON) {
-      const parsed = safeParseComments(text);
-      if (parsed.length) finalComments = parsed;
-    }
+if (isJSON) {
+  const parsed = safeParseComments(text);
 
-    if (!finalComments.length && text.trim()) {
-      console.log("⚠️ Using RAW AI text");
+  if (parsed.length) {
+    finalComments = parsed.map(t => ({
+      text: cleanText(t)
+    }));
+  }
+}
 
-      const lines = text
-        .split("\n")
-        .map(t => t.trim())
-        .filter(t =>
-          t.length > 2 &&
-          t.length < 60 &&
-          !t.includes("undefined") &&
-          !t.includes("null")
-        );
-
-      const isArabicMode = mode === "arabic";
-      const isDarija = arabicType === "darija";
-
-      const cleaned = lines.filter(t => {
-        const hasArabic = /[\u0600-\u06FF]/.test(t);
-        const hasLatin = /[a-zA-Z]/.test(t);
-
-        if (isArabicMode && isDarija) {
-          return hasArabic && !hasLatin;
-        }
-
-        return true;
-      });
-
-      finalComments = cleaned.map(t => ({ text: t }));
-
-      if (!finalComments.length) {
-        finalComments = fallbackComments();
-      }
-    }
-
+if (!finalComments.length) {
+  finalComments = fallbackComments().map(t => ({
+    text: cleanText(t)
+  }));
+}
     console.log("🚀 FINAL COMMENTS:", finalComments);
     return finalComments;
 
@@ -349,22 +347,23 @@ app.get("/get-comment", async (req, res) => {
       refillPool(channel);
     }
 
-let raw = pool.queue.shift();
+let commentObj = pool.queue.shift() || { text: "nice 🔥" };
 
 let comment =
-  typeof raw === "string"
-    ? raw
-    : raw?.text || "nice 🔥";
+  typeof commentObj === "string"
+    ? commentObj
+    : commentObj.text;
 
 let tries = 0;
 
 while (isDuplicate(channel, comment) && tries < 5) {
-  raw = pool.queue.shift();
+  const nextObj =
+    pool.queue.shift() || { text: fallbackComments()[0] };
 
   comment =
-    typeof raw === "string"
-      ? raw
-      : raw?.text || fallbackComments(channel)[0];
+    typeof nextObj === "string"
+      ? nextObj
+      : nextObj.text;
 
   tries++;
 }
