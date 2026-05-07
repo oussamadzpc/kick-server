@@ -180,13 +180,25 @@ function fallbackComments(channel = "") {
 }
 
 // =======================
+// 🔥 CHANNEL PERSONALITY DEFAULT (optional fallback system)
+function getChannelProfile(channel) {
+  return channelContext[channel] || {
+    tone: "hype",
+    audienceType: "gaming",
+    intensity: "medium",
+    chatSample: []
+  };
+}
+
+// =======================
 async function generateComments(channel) {
   console.log("🚨 generateComments CALLED for:", channel);
 
   try {
     if (!GROQ_API_KEY) return fallbackComments();
 
-    const ctx = channelContext[channel] || {};
+    const ctx = getChannelProfile(channel);
+
     const chat = (ctx.chatSample || []).slice(0, 8);
 
     const settings = await getChannelSettings(channel);
@@ -201,6 +213,11 @@ async function generateComments(channel) {
     const region = settings.region || "me";
     const persona = settings.persona || "normal";
 
+    // 🔥 NEW CHANNEL BEHAVIOR SETTINGS
+    const tone = ctx.tone || "hype";
+    const audienceType = ctx.audienceType || "gaming";
+    const intensity = ctx.intensity || "medium";
+
     const chatExamples = chat.length
       ? chat.map(x => "- " + x).join("\n")
       : "- gg\n- nice\n- lol 😂";
@@ -208,13 +225,26 @@ async function generateComments(channel) {
 const prompt = `
 You are a real viewer in a Kick live chat.
 
-STRICT RULES (VERY IMPORTANT):
+━━━━━━━━━━━━━━━━━━
+CHANNEL BEHAVIOR PROFILE
+━━━━━━━━━━━━━━━━━━
+Tone: ${tone}
+Audience Type: ${audienceType}
+Intensity: ${intensity}
+
+━━━━━━━━━━━━━━━━━━
+STRICT CORE RULES
+━━━━━━━━━━━━━━━━━━
 - Follow ONLY the selected language_mode.
 - NEVER mix languages unless mode = mix.
-- Write SHORT comments ONLY (2 to 6 words max).
-- Each comment must be clear and meaningful.
-- No random text. No garbage. No repeated words.
+- Write SHORT comments ONLY (2 to 8 words max).
+- Each comment must feel like a real human reaction.
+- No garbage, no filler, no generic safe replies.
+- NEVER repeat words or phrases in the same output.
 
+━━━━━━━━━━━━━━━━━━
+LANGUAGE MODE
+━━━━━━━━━━━━━━━━━━
 Language Mode: ${mode}
 
 If mode = english:
@@ -230,18 +260,88 @@ If mode = arabic:
 - Arabic Type: ${arabicType}
 - Region: ${region}
 
-Arabic rules:
-- franco → write Arabic using Latin letters ONLY
-- darija → write ONLY Arabic script (no Latin letters)
-- Region controls slang style and vocabulary.
+━━━━━━━━━━━━━━━━━━
+ARABIC RULES (VERY IMPORTANT)
+━━━━━━━━━━━━━━━━━━
+- franco → Arabic written using Latin letters ONLY
+- darija → ONLY Arabic script (no Latin letters allowed)
+- Saudi → Gulf/Saudi dialect ONLY, clear and natural
+- Region controls slang, tone, and vocabulary
 
+━━━━━━━━━━━━━━━━━━
+PERSONA RULE
+━━━━━━━━━━━━━━━━━━
 Persona: ${persona}
 
-Examples:
+Act like different real viewers:
+- hype viewer
+- funny viewer
+- sarcastic viewer
+- shocked viewer
+- supportive viewer
+
+Each comment = different person.
+
+━━━━━━━━━━━━━━━━━━
+DIVERSITY RULE (CRITICAL)
+━━━━━━━━━━━━━━━━━━
+Every comment MUST be different in:
+- meaning
+- emotion
+- structure
+
+Allowed reactions:
+- hype
+- laughter
+- shock
+- admiration
+- joke
+- gameplay reaction
+
+NEVER repeat:
+- "شكرا"
+- "gg"
+- "nice"
+- "مبروك"
+more than once.
+
+━━━━━━━━━━━━━━━━━━
+ANTI-REPETITION RULE
+━━━━━━━━━━━━━━━━━━
+- No repeated sentence patterns.
+- No similar ideas.
+- No reused expressions.
+- Every comment must feel unique.
+
+━━━━━━━━━━━━━━━━━━
+REALISM RULE
+━━━━━━━━━━━━━━━━━━
+- Real live chat behavior.
+- Fast typing style.
+- Natural chaos like Twitch/Kick chat.
+- No AI-like structured sentences.
+
+━━━━━━━━━━━━━━━━━━
+LENGTH RULE
+━━━━━━━━━━━━━━━━━━
+- 2 to 8 words max.
+- Short emotional reactions only.
+
+━━━━━━━━━━━━━━━━━━
+EXAMPLES CONTEXT
+━━━━━━━━━━━━━━━━━━
 ${chatExamples}
 
+━━━━━━━━━━━━━━━━━━
+OUTPUT FORMAT (STRICT)
+━━━━━━━━━━━━━━━━━━
 Return ONLY valid JSON:
-[{"text":"..."}]
+
+[
+  {"text":"..."},
+  {"text":"..."},
+  {"text":"..."}
+]
 
 No explanations.
 No markdown.
@@ -259,7 +359,9 @@ Only pure JSON array.
       body: JSON.stringify({
         model: "llama-3.1-8b-instant",
         messages: [{ role: "user", content: prompt }],
-        temperature: 0.4,
+        temperature: 0.9,
+        presence_penalty: 0.8,
+        frequency_penalty: 1.1,
         max_tokens: 400
       })
     });
@@ -271,25 +373,26 @@ Only pure JSON array.
 
     let finalComments = [];
 
-   const isJSON =
-  text.trim().startsWith("[") &&
-  text.trim().endsWith("]");
+    const isJSON =
+      text.trim().startsWith("[") &&
+      text.trim().endsWith("]");
 
-if (isJSON) {
-  const parsed = safeParseComments(text);
+    if (isJSON) {
+      const parsed = safeParseComments(text);
 
-  if (parsed.length) {
-    finalComments = parsed.map(t => ({
-      text: cleanText(t)
-    }));
-  }
-}
+      if (parsed.length) {
+        finalComments = parsed.map(t => ({
+          text: cleanText(t)
+        }));
+      }
+    }
 
-if (!finalComments.length) {
-  finalComments = fallbackComments().map(t => ({
-    text: cleanText(t)
-  }));
-}
+    if (!finalComments.length) {
+      finalComments = fallbackComments().map(t => ({
+        text: cleanText(t)
+      }));
+    }
+
     console.log("🚀 FINAL COMMENTS:", finalComments);
     return finalComments;
 
