@@ -80,24 +80,21 @@ async function getChannelSettings(channel) {
     const clean = normalize(channel);
 
     const r = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?channel=eq.${clean}&select=preferred_style,preferred_arabic_type,preferred_country,preferred_persona`,
+      `${SUPABASE_URL}/rest/v1/users?channel=eq.${clean}&select=language_mode,arabic_type,region,persona`,
       { headers: getHeaders() }
     );
 
     const data = await r.json();
 
-    if (!data || !data.length) {
-      console.log("❌ No settings for:", channel);
-      return {};
-    }
+    if (!data || !data.length) return {};
 
     const user = data[0];
 
     return {
-      style: user.preferred_style,
-      dialect: user.preferred_arabic_type,
-      country: user.preferred_country,
-      persona: user.preferred_persona
+      language_mode: user.language_mode || "mix",
+      arabic_type: user.arabic_type || "darija",
+      region: user.region || "me",
+      persona: user.persona || "normal"
     };
 
   } catch (err) {
@@ -176,9 +173,9 @@ if (!settings || !settings.style) {
   return fallbackComments();
 }
 
-const style = settings.style || "any";
-const dialect = settings.dialect || "none";
-const country = settings.country || "global";
+const mode = settings.language_mode || "mix";
+const arabicType = settings.arabic_type || "darija";
+const region = settings.region || "me";
 const persona = settings.persona || "normal";
 
     const chatExamples = chat.length
@@ -188,19 +185,36 @@ const persona = settings.persona || "normal";
 const prompt = `
 You are a real viewer in a Kick live chat.
 
-CRITICAL RULES:
-- You MUST write ONLY in Arabic letters (Unicode Arabic script).
-- DO NOT use Franco-Arabic (no Latin letters).
-- DO NOT mix Arabic and English.
-- You MUST strictly follow the dialect.
+STRICT RULES:
+- Follow language_mode EXACTLY.
 
-Channel: ${channel}
-Title: ${title}
+Language Mode: ${mode}
 
-Style: ${style}
-Dialect: ${dialect}
-Country: ${country}
+If mode = english:
+- Write ONLY English
+
+If mode = french:
+- Write ONLY French
+
+If mode = mix:
+- Mix English + French + Arabic naturally
+
+If mode = arabic:
+- Arabic Type: ${arabicType}
+- Region: ${region}
+
+Arabic rules:
+- franco → use Latin Arabic (Franco-Arabic)
+- darija → use Arabic script only
+- Region defines slang style (dialect variation)
+
 Persona: ${persona}
+
+Rules:
+- Keep comments SHORT (max 10 words)
+- One idea per comment
+- No long sentences
+- No nonsense text
 
 Examples:
 ${chatExamples}
@@ -218,7 +232,7 @@ Return ONLY JSON:
       body: JSON.stringify({
         model: "llama-3.1-8b-instant",
         messages: [{ role: "user", content: prompt }],
-        temperature: 0.9,
+        temperature: 0.4,
         max_tokens: 400
       })
     });
