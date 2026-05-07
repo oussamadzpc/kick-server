@@ -74,13 +74,13 @@ function normalize(str) {
     .normalize("NFKC");
 } 
 // =======================
-// 🔥 NEW: GET CHANNEL SETTINGS FROM SUPABASE
+// 🔥 GET CHANNEL SETTINGS FROM SUPABASE (FIXED FINAL VERSION)
 async function getChannelSettings(channel) {
   try {
     const clean = normalize(channel);
 
     const r = await fetch(
-      `${SUPABASE_URL}/rest/v1/users?channel=eq.${clean}&select=language_mode,arabic_type,region,persona`,
+      `${SUPABASE_URL}/rest/v1/users?channel=eq.${clean}&select=preferred_style,preferred_arabic_type,preferred_country,preferred_persona`,
       { headers: getHeaders() }
     );
 
@@ -91,15 +91,20 @@ async function getChannelSettings(channel) {
     const user = data[0];
 
     return {
-      language_mode: user.language_mode || "mix",
-      arabic_type: user.arabic_type || "darija",
-      region: user.region || "me",
-      persona: user.persona || "normal"
+      language_mode: user.preferred_style || "mix",
+      arabic_type: user.preferred_arabic_type || "darija",
+      region: user.preferred_country || "me",
+      persona: user.preferred_persona || "normal"
     };
 
   } catch (err) {
     console.log("❌ settings fetch error:", err.message);
-    return {};
+    return {
+      language_mode: "mix",
+      arabic_type: "darija",
+      region: "me",
+      persona: "normal"
+    };
   }
 }
 // =======================
@@ -185,41 +190,39 @@ const persona = settings.persona || "normal";
 const prompt = `
 You are a real viewer in a Kick live chat.
 
-STRICT RULES:
-- Follow language_mode EXACTLY.
+STRICT RULES (VERY IMPORTANT):
+- Follow ONLY the selected language_mode.
+- NEVER mix languages unless mode = mix.
+- Write SHORT comments ONLY (2 to 6 words max).
+- Each comment must be clear and meaningful.
+- No random text. No garbage. No repeated words.
 
 Language Mode: ${mode}
 
 If mode = english:
-- Write ONLY English
+- Write ONLY English.
 
 If mode = french:
-- Write ONLY French
+- Write ONLY French.
 
 If mode = mix:
-- Mix English + French + Arabic naturally
+- Mix English + French + simple Arabic naturally.
 
 If mode = arabic:
 - Arabic Type: ${arabicType}
 - Region: ${region}
 
 Arabic rules:
-- franco → use Latin Arabic (Franco-Arabic)
-- darija → use Arabic script only
-- Region defines slang style (dialect variation)
+- franco → write Arabic using Latin letters ONLY (Franco-Arabic)
+- darija → write ONLY Arabic script (no Latin letters)
+- Region controls slang style and vocabulary.
 
 Persona: ${persona}
-
-Rules:
-- Keep comments SHORT (max 10 words)
-- One idea per comment
-- No long sentences
-- No nonsense text
 
 Examples:
 ${chatExamples}
 
-Return ONLY JSON:
+Return ONLY valid JSON:
 [{"text":"..."}]
 `;
 
@@ -257,16 +260,35 @@ Return ONLY JSON:
       }
     }
 
-    if (!finalComments.length && text.trim()) {
-      console.log("⚠️ Using RAW AI text");
+ if (!finalComments.length && text.trim()) {
+  console.log("⚠️ Using RAW AI text");
 
-      const lines = text
-        .split("\n")
-        .map(t => t.trim())
-        .filter(t => t.length > 0 && t.length < 120);
+const lines = text
+  .split("\n")
+  .map(t => t.trim())
+  .filter(t =>
+    t.length > 2 &&
+    t.length < 60 &&
+    !t.includes("undefined") &&
+    !t.includes("null")
+  );
 
-      finalComments = lines.map(t => ({ text: t }));
-    }
+const isArabicMode = language_mode === "arabic";
+const isDarija = arabic_type === "darija";
+
+// 🔥 فلترة الفرانكو فقط في الدارجة
+const cleaned = lines.filter(t => {
+
+  if (isArabicMode && isDarija) {
+    // يقبل فقط العربية الحقيقية
+    return /[\u0600-\u06FF]/.test(t);
+  }
+
+  return true;
+});
+
+// 🔥 هذا هو المهم (لازم يكون موجود)
+finalComments = cleaned.map(t => ({ text: t }));
 
     if (!finalComments.length) {
       finalComments = fallbackComments();
