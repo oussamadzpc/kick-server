@@ -144,11 +144,18 @@ function safeParseComments(text) {
 }
 
 // =======================
-function fallbackComments() {
+function fallbackComments(channel = "") {
   return [
-    "nice 🔥","gg","wow","clean",
-    "lol 😂","crazy play","no way",
-    "insane","🔥🔥🔥","!points","!shop"
+    "😂😂",
+    "gg",
+    "clean 🔥",
+    "lol 😂",
+    "nice 🔥",
+    "bravo 🔥",
+    "توب 🔥",
+    "يعطيك الصحة 🔥",
+    "هايل 😂",
+    "واو 🔥"
   ];
 }
 
@@ -190,6 +197,11 @@ Style: ${style}
 Dialect: ${dialect}
 Country: ${country}
 Persona: ${persona}
+
+You MUST strictly follow this dialect:
+${dialect}
+
+You MUST write in the same style.
 
 Examples:
 ${chatExamples}
@@ -309,7 +321,7 @@ app.get("/get-comment", async (req, res) => {
 // 🔥 منع التكرار
 let tries = 0;
 while (isDuplicate(channel, comment) && tries < 5) {
-  comment = pool.queue.shift() || "nice 🔥";
+  const comment = pool.queue.shift() || fallbackComments(channel)[0];
   tries++;
 }
 
