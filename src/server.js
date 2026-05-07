@@ -188,9 +188,43 @@ async function generateComments(channel) {
       ? chat.map(x => "- " + x).join("\n")
       : "- gg\n- nice\n- lol 😂";
 
-    const prompt = `
+const prompt = `
 You are a real viewer in a Kick live chat.
-Return ONLY JSON: [{"text":"..."}]
+
+STRICT RULES (VERY IMPORTANT):
+- Follow ONLY the selected language_mode.
+- NEVER mix languages unless mode = mix.
+- Write SHORT comments ONLY (2 to 6 words max).
+- Each comment must be clear and meaningful.
+- No random text. No garbage. No repeated words.
+
+Language Mode: ${mode}
+
+If mode = english:
+- Write ONLY English.
+
+If mode = french:
+- Write ONLY French.
+
+If mode = mix:
+- Mix English + French + simple Arabic naturally.
+
+If mode = arabic:
+- Arabic Type: ${arabicType}
+- Region: ${region}
+
+Arabic rules:
+- franco → write Arabic using Latin letters ONLY
+- darija → write ONLY Arabic script (no Latin letters)
+- Region controls slang style and vocabulary.
+
+Persona: ${persona}
+
+Examples:
+${chatExamples}
+
+Return ONLY valid JSON:
+[{"text":"..."}]
 `;
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
