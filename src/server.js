@@ -301,7 +301,6 @@ finalComments = cleaned.map(t => ({ text: t }));
   } catch (err) {
     console.log("❌ AI error:", err.message);
     return fallbackComments();
-  }
 }
 // =======================
 async function refillPool(channel) {
