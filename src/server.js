@@ -185,10 +185,14 @@ const persona = settings.persona || "normal";
       ? chat.map(x => "- " + x).join("\n")
       : "- gg\n- nice\n- lol 😂";
 
-    const prompt = `
+const prompt = `
 You are a real viewer in a Kick live chat.
 
-You ONLY write short chat messages.
+CRITICAL RULES:
+- You MUST write ONLY in Arabic letters (Unicode Arabic script).
+- DO NOT use Franco-Arabic (no Latin letters).
+- DO NOT mix Arabic and English.
+- You MUST strictly follow the dialect.
 
 Channel: ${channel}
 Title: ${title}
@@ -198,15 +202,10 @@ Dialect: ${dialect}
 Country: ${country}
 Persona: ${persona}
 
-You MUST strictly follow this dialect:
-${dialect}
-
-You MUST write in the same style.
-
 Examples:
 ${chatExamples}
 
-Return JSON:
+Return ONLY JSON:
 [{"text":"..."}]
 `;
 
