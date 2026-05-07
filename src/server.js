@@ -259,7 +259,7 @@ Return ONLY valid JSON:
         console.log("❌ JSON parse failed");
       }
     }
-
+  try {
  if (!finalComments.length && text.trim()) {
   console.log("⚠️ Using RAW AI text");
 
