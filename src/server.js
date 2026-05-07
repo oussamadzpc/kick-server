@@ -173,7 +173,7 @@ console.log("🚨 generateComments CALLED for:", channel);
 
     const settings = await getChannelSettings(channel);
 
-if (!settings || !settings.style) {
+if (!settings || !settings.language_mode) {
   console.log("⚠️ No settings found for channel:", channel);
   return fallbackComments();
 }
@@ -274,25 +274,29 @@ try {
         !t.includes("undefined") &&
         !t.includes("null")
       );
+const isArabicMode = mode === "arabic";
+const isDarija = arabicType === "darija";
 
-    const isArabicMode = language_mode === "arabic";
-    const isDarija = arabic_type === "darija";
+const cleaned = lines.filter(t => {
 
-    const cleaned = lines.filter(t => {
-      if (isArabicMode && isDarija) {
-        return /[\u0600-\u06FF]/.test(t);
-      }
-      return true;
-    });
+  const hasArabic = /[\u0600-\u06FF]/.test(t);
+  const hasLatin = /[a-zA-Z]/.test(t);
 
-    finalComments = cleaned.map(t => ({ text: t }));
-
-    if (!finalComments.length) {
-      finalComments = fallbackComments();
-    }
-
-    console.log("🚀 FINAL COMMENTS:", finalComments);
+  if (isArabicMode && isDarija) {
+    // دارجة = لازم عربي فقط + ممنوع لاتيني (فرانكو)
+    return hasArabic && !hasLatin;
   }
+
+  return true;
+});
+
+finalComments = cleaned.map(t => ({ text: t }));
+
+if (!finalComments.length) {
+  finalComments = fallbackComments();
+}
+
+console.log("🚀 FINAL COMMENTS:", finalComments);
 
   return finalComments;
 
@@ -300,7 +304,9 @@ try {
   console.log("❌ AI error:", err.message);
   return fallbackComments();
 }
+}
 // =======================
+// 🔥 REFILL POOL
 async function refillPool(channel) {
   if (!commentPool[channel]) {
     commentPool[channel] = {
@@ -348,12 +354,12 @@ app.get("/get-comment", async (req, res) => {
       refillPool(channel);
     }
 
-    let comment = pool.queue.shift() || "nice 🔥";
+let comment = pool.queue.shift() || "nice 🔥";
 
-// 🔥 منع التكرار
 let tries = 0;
+
 while (isDuplicate(channel, comment) && tries < 5) {
-  const comment = pool.queue.shift() || fallbackComments(channel)[0];
+  comment = pool.queue.shift() || fallbackComments(channel)[0];
   tries++;
 }
 
