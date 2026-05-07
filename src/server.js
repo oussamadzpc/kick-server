@@ -46,10 +46,13 @@ function isDuplicate(channel, text) {
 
   const history = commentHistory[channel];
 
-  if (history.includes(normalizedText)) return true;
+  const normalizedText = normalize(text);
 
+  if (history.includes(normalizedText)) {
+    return true;
+  }
 
-  history.push(text);
+  history.push(normalizedText);
 
   if (history.length > 40) {
     history.shift();
@@ -346,12 +349,23 @@ app.get("/get-comment", async (req, res) => {
       refillPool(channel);
     }
 
-let comment = pool.queue.shift() || "nice 🔥";
+let raw = pool.queue.shift();
+
+let comment =
+  typeof raw === "string"
+    ? raw
+    : raw?.text || "nice 🔥";
 
 let tries = 0;
 
 while (isDuplicate(channel, comment) && tries < 5) {
-  comment = pool.queue.shift() || fallbackComments(channel)[0];
+  raw = pool.queue.shift();
+
+  comment =
+    typeof raw === "string"
+      ? raw
+      : raw?.text || fallbackComments(channel)[0];
+
   tries++;
 }
 
