@@ -46,7 +46,8 @@ function isDuplicate(channel, text) {
 
   const history = commentHistory[channel];
 
-  if (history.includes(text)) return true;
+  if (history.includes(normalizedText)) return true;
+
 
   history.push(text);
 
@@ -163,11 +164,6 @@ function fallbackComments(channel = "") {
 
 // =======================
 async function generateComments(channel) {
-console.log("🚨 generateComments CALLED for:", channel);
-  try {
-    if (!GROQ_API_KEY) return fallbackComments();
-
-    const ctx = channelContext[chasync function generateComments(channel) {
   console.log("🚨 generateComments CALLED for:", channel);
 
   try {
@@ -221,12 +217,8 @@ Return ONLY JSON: [{"text":"..."}]
     const isJSON = text.trim().startsWith("[") && text.trim().endsWith("]");
 
     if (isJSON) {
-      try {
-        const parsed = safeParseComments(text);
-        if (parsed.length) finalComments = parsed;
-      } catch (e) {
-        console.log("❌ JSON parse failed");
-      }
+      const parsed = safeParseComments(text);
+      if (parsed.length) finalComments = parsed;
     }
 
     if (!finalComments.length && text.trim()) {
@@ -261,15 +253,14 @@ Return ONLY JSON: [{"text":"..."}]
       if (!finalComments.length) {
         finalComments = fallbackComments();
       }
-
-      console.log("🚀 FINAL COMMENTS:", finalComments);
     }
 
+    console.log("🚀 FINAL COMMENTS:", finalComments);
     return finalComments;
 
   } catch (err) {
     console.log("❌ AI error:", err.message);
-    return fallbackComments();
+    return fallbackComments().map(t => ({ text: t }));
   }
 }
 // =======================
