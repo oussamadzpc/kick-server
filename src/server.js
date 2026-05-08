@@ -44,7 +44,8 @@ let globalNotice = {
   active: false,
   id: null,
   text: "",
-  createdAt: null
+  createdAt: null,
+  version: 0
 };
 
 function isDuplicate(channel, text) {
@@ -817,13 +818,13 @@ app.post("/admin/send-notice", (req, res) => {
       return res.json({ ok: false });
     }
 
-    globalNotice = {
-      active: true,
-      id: Date.now(),
-      text: String(text).trim(),
-      createdAt: Date.now()
-    };
-
+  globalNotice = {
+  active: true,
+  id: Date.now(),
+  version: Date.now(), // 🔥 مهم جداً
+  text: String(text).trim(),
+  createdAt: Date.now()
+};
     console.log("📢 NOTICE SENT:", text);
 
     return res.json({ ok: true });
@@ -857,7 +858,10 @@ app.post("/admin/end-notice", (req, res) => {
 // =======================
 // 🔔 GET GLOBAL NOTICE
 app.get("/notice", (req, res) => {
-  res.json(globalNotice);
+  res.json({
+  ...globalNotice,
+  serverTime: Date.now()
+});
 });
 // =======================
 app.listen(PORT, () => {
