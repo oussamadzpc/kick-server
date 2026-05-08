@@ -596,7 +596,73 @@ async function removeVIP() {
   alert("VIP removed");
   await loadRequests();
 }
+// ==========================
+// 🔔 ADMIN NOTICE SYSTEM
 
+async function sendNotice() {
+
+  const text = document
+    .getElementById("noticeInput")
+    .value
+    .trim();
+
+  if (!text) {
+    alert("Write notice first");
+    return;
+  }
+
+  try {
+
+    const res = await fetch(BASE_URL + "/admin/send-notice", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-admin-key": ADMIN_KEY
+      },
+      body: JSON.stringify({ text })
+    });
+
+    const data = await res.json();
+
+    console.log("NOTICE:", data);
+
+    if (data.ok) {
+      alert("Notice Sent");
+    } else {
+      alert("Failed");
+    }
+
+  } catch (err) {
+    console.log(err);
+    alert("Error");
+  }
+}
+
+// ==========================
+
+async function endNotice() {
+
+  try {
+
+    const res = await fetch(BASE_URL + "/admin/end-notice", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-admin-key": ADMIN_KEY
+      }
+    });
+
+    const data = await res.json();
+
+    console.log("END NOTICE:", data);
+
+    alert("Notice Ended");
+
+  } catch (err) {
+    console.log(err);
+    alert("Error");
+  }
+}
 loadRequests();
 </script>
 <script>
