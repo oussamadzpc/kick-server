@@ -38,6 +38,14 @@ let commentPool = {};
 let channelContext = {};
 // 🔥 COMMENT MEMORY (FIX)
 let commentHistory = {};
+// =======================
+// 🔔 GLOBAL ADMIN NOTICE
+let globalNotice = {
+  active: false,
+  id: null,
+  text: "",
+  createdAt: null
+};
 
 function isDuplicate(channel, text) {
   if (!commentHistory[channel]) {
@@ -793,7 +801,64 @@ app.post("/admin/stop-verification", (req, res) => {
 
   res.json({ ok: true });
 });
+// =======================
+// 🔔 SEND GLOBAL NOTICE
+app.post("/admin/send-notice", (req, res) => {
+  const key = req.headers["x-admin-key"];
 
+  if (key !== ADMIN_KEY) {
+    return res.status(403).json({ ok: false });
+  }
+
+  try {
+    const { text } = req.body;
+
+    if (!text || text.length < 2) {
+      return res.json({ ok: false });
+    }
+
+    globalNotice = {
+      active: true,
+      id: Date.now(),
+      text: String(text).trim(),
+      createdAt: Date.now()
+    };
+
+    console.log("📢 NOTICE SENT:", text);
+
+    return res.json({ ok: true });
+
+  } catch {
+    return res.json({ ok: false });
+  }
+});
+
+// =======================
+// 🔔 END GLOBAL NOTICE
+app.post("/admin/end-notice", (req, res) => {
+  const key = req.headers["x-admin-key"];
+
+  if (key !== ADMIN_KEY) {
+    return res.status(403).json({ ok: false });
+  }
+
+  globalNotice = {
+    active: false,
+    id: null,
+    text: "",
+    createdAt: null
+  };
+
+  console.log("🛑 NOTICE ENDED");
+
+  res.json({ ok: true });
+});
+
+// =======================
+// 🔔 GET GLOBAL NOTICE
+app.get("/notice", (req, res) => {
+  res.json(globalNotice);
+});
 // =======================
 app.listen(PORT, () => {
   console.log("🚀 Server running on port", PORT);
