@@ -198,6 +198,64 @@ td:first-child {
   </div>
 
 </div>
+<!-- 🔔 ADMIN NOTICE PANEL -->
+
+<div style="
+  margin:20px;
+  padding:15px;
+  background:#020617;
+  border:1px solid #1e293b;
+  border-radius:12px;
+">
+
+  <h3 style="margin-top:0;">📢 Global Notice</h3>
+
+  <textarea
+    id="noticeInput"
+    placeholder="Write notice..."
+    style="
+      width:100%;
+      height:90px;
+      background:#0f172a;
+      color:white;
+      border:1px solid #334155;
+      border-radius:10px;
+      padding:10px;
+      resize:none;
+      margin-bottom:10px;
+    "
+  ></textarea>
+
+  <button
+    onclick="sendNotice()"
+    style="
+      background:#22c55e;
+      color:white;
+      padding:10px 16px;
+      border:none;
+      border-radius:10px;
+      cursor:pointer;
+      margin-right:10px;
+    "
+  >
+    Send Notice
+  </button>
+
+  <button
+    onclick="endNotice()"
+    style="
+      background:#ef4444;
+      color:white;
+      padding:10px 16px;
+      border:none;
+      border-radius:10px;
+      cursor:pointer;
+    "
+  >
+    End Notice
+  </button>
+
+</div>
 <div class="container">
 
   <div class="table-box">
