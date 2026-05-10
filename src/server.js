@@ -30,6 +30,7 @@ let verificationMode = {
 // =======================
 let cachedChannels = [];
 let liveCache = {};
+let refreshLiveRunning = false;
 
 // 🔥 NEW STATE MEMORY
 let stateMemory = {};
