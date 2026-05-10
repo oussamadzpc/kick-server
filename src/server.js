@@ -568,7 +568,18 @@ async function refreshChannels() {
 // =======================
 // 🔥 FIXED CORE
 async function refreshLive() {
-  if (!cachedChannels.length) return;
+
+  if (refreshLiveRunning) {
+    console.log("⛔ refreshLive skipped (still running)");
+    return;
+  }
+
+  refreshLiveRunning = true;
+
+  if (!cachedChannels.length) {
+  refreshLiveRunning = false;
+  return;
+}
 
   console.log("🔄 Checking live...");
 
@@ -607,7 +618,13 @@ let apiLive =
 
 // 🔥 HYBRID CHECK
 if (!apiLive) {
-  const htmlCheck = await checkLiveFromHTML(channel);
+
+  let htmlCheck = false;
+
+  // 🔥 fallback فقط عند فشل API الحقيقي
+  if (apiLive === false && isLiveNow === false) {
+    htmlCheck = await checkLiveFromHTML(channel);
+  }
 
   if (htmlCheck === true) {
     isLiveNow = true;
@@ -660,11 +677,12 @@ if (!apiLive) {
   }
 
   console.log("📡 Live stable updated");
+refreshLiveRunning = false;
 }
 
 // =======================
 setInterval(refreshChannels, 30000);
-setInterval(refreshLive, 10000);
+setInterval(refreshLive, 15000);
 
 refreshChannels();
 refreshLive();
@@ -691,8 +709,20 @@ app.get("/sync", (req, res) => {
 });
 
 // =======================
+let lastStatusSend = 0;
+let cachedStatusResponse = null;
+
 app.get("/status", (req, res) => {
-  res.json(liveCache);
+
+  const now = Date.now();
+
+  // 🔥 نحدث الكاش كل 3 ثواني فقط
+  if (!cachedStatusResponse || now - lastStatusSend > 3000) {
+    cachedStatusResponse = { ...liveCache };
+    lastStatusSend = now;
+  }
+
+  res.json(cachedStatusResponse);
 });
 
 app.post("/check-live", (req, res) => {
