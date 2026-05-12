@@ -1387,6 +1387,32 @@ app.get("/admin/dashboard-status", (req, res) => {
   return res.json(result);
 });
 // =======================
+// 🔴 STOP VERIFICATION
+
+app.post("/admin/stop-verification", (req, res) => {
+
+  const key =
+    req.headers["x-admin-key"];
+
+  if (key !== ADMIN_KEY) {
+    return res
+      .status(403)
+      .json({ ok: false });
+  }
+
+  verificationSessions = {};
+
+  verificationMode.active = false;
+
+  verificationMode.channels = [];
+
+  console.log("🔴 Verification stopped");
+
+  return res.json({
+    ok: true
+  });
+});
+// =======================
 app.listen(PORT, () => {
   console.log("🚀 Server running on port", PORT);
 });
