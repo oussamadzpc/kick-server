@@ -421,20 +421,27 @@ updateVerificationStatus(true);
 }
 
 async function stopVerification() {
-  await fetch(BASE_URL + "/verification/heartbeat", {, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-admin-key": ADMIN_KEY
-    }
-  });
+  try {
+    await fetch(BASE_URL + "/admin/stop-verification", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-admin-key": ADMIN_KEY
+      }
+    });
 
-  alert("Verification Stopped");
-updateVerificationStatus(false);
+    alert("Verification Stopped");
+    updateVerificationStatus(false);
+
+  } catch (err) {
+    console.log("STOP ERROR:", err);
+    alert("Error stopping verification");
+  }
 }
 
 async function deleteSelected() {
   const selected = document.querySelectorAll(".select:checked");
+
   if (selected.length === 0) {
     alert("Select users first");
     return;
@@ -455,79 +462,7 @@ async function deleteSelected() {
       body: JSON.stringify({ id, channel })
     });
   }
-// =======================
-// 🔔 SEND GLOBAL NOTICE
-document
-  .getElementById("sendNoticeBtn")
-  ?.addEventListener("click", async () => {
 
-    const text =
-      document.getElementById("noticeText")
-      .value
-      .trim();
-
-    if (!text) {
-      alert("Write notice first");
-      return;
-    }
-
-    try {
-
-      const res = await fetch(
-        BASE_URL + "/admin/send-notice",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-admin-key": ADMIN_KEY
-          },
-          body: JSON.stringify({ text })
-        }
-      );
-
-      const data = await res.json();
-
-      if (data.ok) {
-        alert("✅ Notice Sent");
-      } else {
-        alert("❌ Failed");
-      }
-
-    } catch (err) {
-      console.log(err);
-      alert("❌ Error");
-    }
-});
-
-// =======================
-// 🔔 END GLOBAL NOTICE
-document
-  .getElementById("endNoticeBtn")
-  ?.addEventListener("click", async () => {
-
-    try {
-
-      const res = await fetch(
-        BASE_URL + "/admin/end-notice",
-        {
-          method: "POST",
-          headers: {
-            "x-admin-key": ADMIN_KEY
-          }
-        }
-      );
-
-      const data = await res.json();
-
-      if (data.ok) {
-        alert("🛑 Notice Ended");
-      }
-
-    } catch (err) {
-      console.log(err);
-      alert("❌ Error");
-    }
-});
   await loadRequests();
 }
 
@@ -699,7 +634,7 @@ async function endNotice() {
     alert("Error");
   }
 }
-loadRequests();
+window.onload = loadRequests;
 </script>
 <script>
 
