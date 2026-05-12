@@ -396,28 +396,53 @@ function toggleAll(source) {
     cb.checked = source.checked;
   });
 }
-
 async function startVerification() {
-  const selected = document.querySelectorAll("#approved .select:checked");
+
+  const selected =
+    document.querySelectorAll(
+      "#approved .select:checked"
+    );
+
   if (selected.length === 0) {
-    alert("Select VIP channels first");
+    alert("Select channels first");
     return;
   }
 
-  const channels = [];
-  selected.forEach(cb => channels.push(cb.dataset.channel));
+  try {
 
-  await fetch(BASE_URL + "/verification/start", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-admin-key": ADMIN_KEY
-    },
-    body: JSON.stringify({ channels })
-  });
+    for (const cb of selected) {
 
-  alert("Verification Started");
-updateVerificationStatus(true);
+      const channel =
+        cb.dataset.channel;
+
+      await fetch(
+        BASE_URL + "/verification/start",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-admin-key": ADMIN_KEY
+          },
+          body: JSON.stringify({
+            channel
+          })
+        }
+      );
+    }
+
+    alert("Verification Started");
+
+    updateVerificationStatus(true);
+
+  } catch (err) {
+
+    console.log(
+      "START VERIFICATION ERROR:",
+      err
+    );
+
+    alert("Error");
+  }
 }
 
 async function stopVerification() {
@@ -652,7 +677,216 @@ function updateVerificationStatus(active) {
     el.style.background = "#7f1d1d";
   }
 }
+// ==========================
+// 🧠 PRESENCE DASHBOARD
 
+async function loadPresenceDashboard() {
+
+  try {
+
+    const res = await fetch(
+      BASE_URL + "/admin/dashboard-status",
+      {
+        headers: {
+          "x-admin-key": ADMIN_KEY
+        }
+      }
+    );
+
+    const data = await res.json();
+
+    const box =
+      document.getElementById(
+        "presenceDashboard"
+      );
+
+    if (!box) return;
+
+    box.innerHTML = "";
+
+    const channels =
+      Object.keys(data);
+
+    if (!channels.length) {
+
+      box.innerHTML = `
+        <tr>
+          <td colspan="6" style="
+            padding:20px;
+            text-align:center;
+            opacity:0.7;
+          ">
+            No Active Sessions
+          </td>
+        </tr>
+      `;
+
+      return;
+    }
+
+    channels.forEach(channel => {
+
+      const s = data[channel];
+
+      let color = "#ef4444";
+      let text = "OFFLINE";
+
+      if (s.status === "green") {
+        color = "#22c55e";
+        text = "ACTIVE";
+      }
+
+      else if (s.status === "yellow") {
+        color = "#f59e0b";
+        text = "LAG";
+      }
+
+      const totalMinutes =
+        Math.floor(
+          (s.totalTime || 0) / 60000
+        );
+
+      const lastSeenSec =
+        Math.floor(
+          (s.lastSeenAgo || 0) / 1000
+        );
+
+      const started =
+        new Date(
+          s.firstSeen
+        ).toLocaleTimeString();
+
+      const row =
+        document.createElement("tr");
+
+      row.innerHTML = `
+
+        <td style="
+          padding:12px;
+        ">
+          <span style="
+            background:${color};
+            color:white;
+            padding:5px 10px;
+            border-radius:20px;
+            font-size:12px;
+            font-weight:bold;
+          ">
+            ${text}
+          </span>
+        </td>
+
+        <td style="padding:12px;">
+          ${channel}
+        </td>
+
+        <td style="padding:12px;">
+          ${totalMinutes} min
+        </td>
+
+        <td style="padding:12px;">
+          ${lastSeenSec}s ago
+        </td>
+
+        <td style="padding:12px;">
+          ${started}
+        </td>
+
+        <td style="padding:12px;">
+
+          ${
+            s.expired
+              ? "🔴 Expired"
+              : s.completed
+              ? "✅ Completed"
+              : "🟢 Running"
+          }
+
+        </td>
+      `;
+
+      box.appendChild(row);
+
+    });
+
+  } catch (err) {
+
+    console.log(
+      "Dashboard Error:",
+      err
+    );
+  }
+}
+
+// ==========================
+
+setInterval(
+  loadPresenceDashboard,
+  5000
+);
+
+window.addEventListener(
+  "load",
+  loadPresenceDashboard
+);
+<!-- =============================== -->
+<!-- 🧠 VERIFICATION DASHBOARD -->
+
+<div style="
+  margin:20px;
+  background:#020617;
+  border:1px solid #1e293b;
+  border-radius:14px;
+  padding:20px;
+">
+
+  <h2 style="
+    margin-top:0;
+    margin-bottom:15px;
+  ">
+    🧠 Verification Presence Dashboard
+  </h2>
+
+  <div style="
+    overflow-x:auto;
+  ">
+
+    <table style="
+      width:100%;
+      border-collapse:collapse;
+    ">
+
+      <thead>
+
+        <tr style="
+          background:#0f172a;
+        ">
+
+          <th>Status</th>
+
+          <th>Channel</th>
+
+          <th>Watch Time</th>
+
+          <th>Last Seen</th>
+
+          <th>Session Start</th>
+
+          <th>State</th>
+
+        </tr>
+
+      </thead>
+
+      <tbody id="presenceDashboard">
+
+      </tbody>
+
+    </table>
+
+  </div>
+
+</div>
 </script>
 
 </body>
