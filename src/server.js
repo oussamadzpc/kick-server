@@ -1282,6 +1282,57 @@ app.post("/verification/start", (req, res) => {
   }
 });
 // =======================
+// 🔥 VERIFICATION HEARTBEAT
+
+app.post("/verification/heartbeat", (req, res) => {
+
+  try {
+
+    const { channel } = req.body;
+
+    if (!channel) {
+      return res.json({ ok: false });
+    }
+
+    const clean = normalize(channel);
+
+    const session = verificationSessions[clean];
+
+    if (!session) {
+      return res.json({ ok: false, reason: "no_session" });
+    }
+
+    // تحديث آخر نشاط
+    const now = Date.now();
+    session.lastHeartbeat = now;
+
+    // حساب الوقت الفعلي
+    session.totalTime =
+      now - session.startedAt;
+
+    console.log(
+      "💓 heartbeat:",
+      clean,
+      "time:",
+      session.totalTime
+    );
+
+    return res.json({
+      ok: true,
+      time: session.totalTime
+    });
+
+  } catch (err) {
+
+    console.log(
+      "❌ heartbeat error",
+      err.message
+    );
+
+    return res.json({ ok: false });
+  }
+});
+// =======================
 app.listen(PORT, () => {
   console.log("🚀 Server running on port", PORT);
 });
