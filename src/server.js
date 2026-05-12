@@ -21,7 +21,10 @@ if (!SUPABASE_KEY) {
 
 // =======================
 let vipChannels = new Set();
-
+let verificationMode = {
+  active: false,
+  channels: []
+};
 // =======================
 // 🔥 VERIFICATION PRESENCE SYSTEM
 
