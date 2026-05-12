@@ -368,50 +368,74 @@ if (verificationActive && !isVIP) {
     const flag = isDeleted ? '<span class="deleted-flag">⚠</span>' : '';
 
     const row = document.createElement("tr");
-    const isApproved = user.approved === true;
+const isApproved = user.approved === true;
 
-    if (isVIP) {
-      vipCount++;
-      row.innerHTML = `
-        <td>
-  <input type="checkbox"
-    onchange="toggleSelect('${user.channel}', this.checked)"
-    ${selectedChannels.has(user.channel) ? "checked" : ""}>
-</td>
-        <td>${user.channel} <span class="vip-badge">👑</span> ${flag}</td>
-        <td class="status-approved">VIP</td>
-      `;
-      vipBox.appendChild(row);
-    } else if (isApproved) {
-      approvedCount++;
-      row.innerHTML = `
-        <td>
-  <input type="checkbox"
-    onchange="toggleSelect('${user.channel}', this.checked)"
-    ${selectedChannels.has(user.channel) ? "checked" : ""}>
-</td>
-        <td>${user.channel} ${flag}</td>
-        <td class="status-approved">Approved</td>
-      `;
-      approvedBox.appendChild(row);
-    } else {
-      pendingCount++;
-      row.innerHTML = `
-      <td>
-  <input type="checkbox"
-    onchange="toggleSelect('${user.channel}', this.checked)"
-    ${selectedChannels.has(user.channel) ? "checked" : ""}>
-</td>
-        <td>${user.channel} ${flag}</td>
-        <td class="status-pending">Pending</td>
-        <td class="actions">
-          <button onclick="approve('${user.channel}')">✔</button>
-          <button onclick="reject('${user.id}')">✖</button>
-          <button onclick="block('${user.id}')">⛔</button>
-        </td>
-      `;
-      pendingBox.appendChild(row);
-    }
+if (isVIP) {
+  vipCount++;
+
+  row.innerHTML = `
+    <td>
+      <input type="checkbox"
+        class="select"
+        data-channel="${user.channel}"
+        data-id="${user.id}"
+        onchange="toggleSelect('${user.channel}', this.checked)"
+        ${selectedChannels.has(user.channel) ? "checked" : ""}>
+    </td>
+
+    <td>${user.channel} <span class="vip-badge">👑</span> ${flag}</td>
+
+    <td class="status-approved">VIP</td>
+  `;
+
+  vipBox.appendChild(row);
+
+} else if (isApproved) {
+  approvedCount++;
+
+  row.innerHTML = `
+    <td>
+      <input type="checkbox"
+        class="select"
+        data-channel="${user.channel}"
+        data-id="${user.id}"
+        onchange="toggleSelect('${user.channel}', this.checked)"
+        ${selectedChannels.has(user.channel) ? "checked" : ""}>
+    </td>
+
+    <td>${user.channel} ${flag}</td>
+
+    <td class="status-approved">Approved</td>
+  `;
+
+  approvedBox.appendChild(row);
+
+} else {
+  pendingCount++;
+
+  row.innerHTML = `
+    <td>
+      <input type="checkbox"
+        class="select"
+        data-channel="${user.channel}"
+        data-id="${user.id}"
+        onchange="toggleSelect('${user.channel}', this.checked)"
+        ${selectedChannels.has(user.channel) ? "checked" : ""}>
+    </td>
+
+    <td>${user.channel} ${flag}</td>
+
+    <td class="status-pending">Pending</td>
+
+    <td class="actions">
+      <button onclick="approve('${user.channel}')">✔</button>
+      <button onclick="reject('${user.id}')">✖</button>
+      <button onclick="block('${user.id}')">⛔</button>
+    </td>
+  `;
+
+  pendingBox.appendChild(row);
+}
 
   });
 
@@ -423,6 +447,14 @@ if (verificationActive && !isVIP) {
 function toggleAll(source) {
   document.querySelectorAll(".select").forEach(cb => {
     cb.checked = source.checked;
+
+    const channel = cb.dataset.channel;
+
+    if (source.checked) {
+      selectedChannels.add(channel);
+    } else {
+      selectedChannels.delete(channel);
+    }
   });
 }
 async function startVerification() {
