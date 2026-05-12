@@ -829,11 +829,11 @@ app.get("/sync", (req, res) => {
 
   if (verificationMode.active) {
     return res.json({
-      status: "verification",
-      channels: [],
-      vipChannels: verificationMode.channels,
-      verificationActive: true
-    });
+  status: "active",
+  channels: cachedChannels,
+  vipChannels: [...vipChannels],
+  verificationActive: verificationMode.active
+});
   }
 
   return res.json({
