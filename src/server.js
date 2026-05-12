@@ -1228,6 +1228,60 @@ app.post("/presence/ping", (req, res) => {
   }
 });
 // =======================
+// 🔥 START VERIFICATION SESSION
+
+app.post("/verification/start", (req, res) => {
+
+  try {
+
+    const { channel } = req.body;
+
+    if (!channel) {
+      return res.json({
+        ok: false
+      });
+    }
+
+    const cleanChannel =
+      normalize(channel);
+
+    verificationSessions[cleanChannel] = {
+
+      verified: false,
+
+      startedAt: Date.now(),
+
+      lastHeartbeat: Date.now(),
+
+      totalTime: 0,
+
+      completed: false,
+
+      expired: false
+    };
+
+    console.log(
+      "🟢 verification started:",
+      cleanChannel
+    );
+
+    return res.json({
+      ok: true
+    });
+
+  } catch (err) {
+
+    console.log(
+      "❌ verification start error",
+      err.message
+    );
+
+    return res.json({
+      ok: false
+    });
+  }
+});
+// =======================
 app.listen(PORT, () => {
   console.log("🚀 Server running on port", PORT);
 });
