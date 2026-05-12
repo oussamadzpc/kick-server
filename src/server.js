@@ -29,8 +29,6 @@ let verificationMode = {
 // =======================
 // 🔥 VERIFICATION PRESENCE SYSTEM
 
-let verificationSessions = {};
-
 // شكل الجلسة:
 // verificationSessions[channel] = {
 //   verified: false,
@@ -802,6 +800,27 @@ refreshLiveRunning = false;
 // =======================
 setInterval(refreshChannels, 30000);
 setInterval(refreshLive, 15000);
+setInterval(() => {
+
+  const now = Date.now();
+
+  for (const channel in verificationSessions) {
+
+    const s = verificationSessions[channel];
+
+    // ⛔ expired session
+    if (now - s.lastHeartbeat > 15 * 60 * 1000) {
+      s.expired = true;
+      s.verified = false;
+    }
+
+    // 🧹 حذف قديم جداً
+    if (now - s.startedAt > 60 * 60 * 1000) {
+      delete verificationSessions[channel];
+    }
+  }
+
+}, 60000);
 
 refreshChannels();
 refreshLive();
@@ -1281,8 +1300,9 @@ app.post("/verification/start", (req, res) => {
     });
   }
 });
+
 // =======================
-// 🔥 VERIFICATION HEARTBEAT
+let verificationSessions = {};
 
 app.post("/verification/heartbeat", (req, res) => {
 
@@ -1290,9 +1310,7 @@ app.post("/verification/heartbeat", (req, res) => {
 
     const { channel } = req.body;
 
-    if (!channel) {
-      return res.json({ ok: false });
-    }
+    if (!channel) return res.json({ ok: false });
 
     const clean = normalize(channel);
 
@@ -1302,20 +1320,14 @@ app.post("/verification/heartbeat", (req, res) => {
       return res.json({ ok: false, reason: "no_session" });
     }
 
-    // تحديث آخر نشاط
     const now = Date.now();
+
     session.lastHeartbeat = now;
 
-    // حساب الوقت الفعلي
-    session.totalTime =
-      now - session.startedAt;
+    session.totalTime = now - session.startedAt;
 
-    console.log(
-      "💓 heartbeat:",
-      clean,
-      "time:",
-      session.totalTime
-    );
+    // 🟢 mark active
+    session.expired = false;
 
     return res.json({
       ok: true,
@@ -1323,14 +1335,54 @@ app.post("/verification/heartbeat", (req, res) => {
     });
 
   } catch (err) {
-
-    console.log(
-      "❌ heartbeat error",
-      err.message
-    );
-
     return res.json({ ok: false });
   }
+});
+
+// =======================
+// 🔥 ADMIN DASHBOARD STATUS API
+
+app.get("/admin/dashboard-status", (req, res) => {
+
+  const key = req.headers["x-admin-key"];
+  if (key !== ADMIN_KEY) {
+    return res.status(403).json({ ok: false });
+  }
+
+  const now = Date.now();
+
+  const result = {};
+
+  for (const channel in verificationSessions) {
+
+    const session = verificationSessions[channel];
+
+    const lastSeen = session.lastHeartbeat || session.startedAt;
+    const firstSeen = session.startedAt;
+
+    const diff = now - lastSeen;
+
+    let status = "red";
+
+    if (diff < 2 * 60 * 1000) {
+      status = "green";
+    } 
+    else if (diff < 10 * 60 * 1000) {
+      status = "yellow";
+    }
+
+    result[channel] = {
+      firstSeen,
+      lastSeen,
+      lastSeenAgo: diff,
+      totalTime: session.totalTime || 0,
+      status,
+      completed: session.completed || false,
+      expired: session.expired || false
+    };
+  }
+
+  return res.json(result);
 });
 // =======================
 app.listen(PORT, () => {
