@@ -40,6 +40,108 @@ let channelContext = {};
 // 🔥 COMMENT MEMORY (FIX)
 let commentHistory = {};
 // =======================
+// 🧠 PRESENCE SYSTEM
+
+let presenceMemory = {};
+
+// شكل البيانات:
+/*
+presenceMemory[userId] = {
+
+  userId,
+  channel,
+
+  verificationActive: false,
+
+  joinedAt: 0,
+  lastPing: 0,
+
+  totalWatchMs: 0,
+  lastWatchStart: 0,
+
+  pingCount: 0,
+
+  videoOk: false,
+
+  suspicious: 0,
+
+  disconnected: false,
+
+  tabId: null
+}
+*/
+
+// =======================
+function ensurePresence(userId) {
+
+  if (!presenceMemory[userId]) {
+
+    presenceMemory[userId] = {
+
+      userId,
+
+      channel: null,
+
+      verificationActive: false,
+
+      joinedAt: 0,
+      lastPing: 0,
+
+      totalWatchMs: 0,
+      lastWatchStart: 0,
+
+      pingCount: 0,
+
+      videoOk: false,
+
+      suspicious: 0,
+
+      disconnected: false,
+
+      tabId: null
+    };
+  }
+
+  return presenceMemory[userId];
+}
+
+// =======================
+function getNow() {
+  return Date.now();
+}
+
+// =======================
+// 🧠 CLEAN DEAD USERS
+
+setInterval(() => {
+	
+  const now = getNow();
+
+  for (const userId in presenceMemory) {
+
+    const p = presenceMemory[userId];
+
+    // إذا اختفى أكثر من 2 دقيقة
+    if (
+      p.lastPing &&
+      now - p.lastPing > 120000
+    ) {
+
+      p.disconnected = true;
+
+      // وقف احتساب الوقت
+      if (p.lastWatchStart) {
+
+        p.totalWatchMs +=
+          now - p.lastWatchStart;
+
+        p.lastWatchStart = 0;
+      }
+    }
+  }
+
+}, 30000);
+// =======================
 // 🔔 GLOBAL ADMIN NOTICE
 let globalNotice = {
   active: false,
