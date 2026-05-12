@@ -1078,6 +1078,140 @@ app.post("/presence/start", (req, res) => {
   }
 });
 // =======================
+// 🧠 PRESENCE HEARTBEAT
+
+app.post("/presence/ping", (req, res) => {
+
+  try {
+
+    const {
+      userId,
+      channel,
+      videoPlaying,
+      tabId
+    } = req.body || {};
+
+    if (!userId) {
+
+      return res.json({
+        ok: false
+      });
+    }
+
+    const p =
+      ensurePresence(userId);
+
+    const now = getNow();
+
+    // =======================
+    // 🔥 channel mismatch
+
+    if (
+      channel &&
+      p.channel &&
+      normalize(channel) !== p.channel
+    ) {
+
+      p.suspicious++;
+
+      console.log(
+        "⚠️ channel mismatch:",
+        userId
+      );
+    }
+
+    // =======================
+    // 🔥 tab mismatch
+
+    if (
+      tabId &&
+      p.tabId &&
+      tabId !== p.tabId
+    ) {
+
+      p.suspicious++;
+
+      console.log(
+        "⚠️ tab mismatch:",
+        userId
+      );
+    }
+
+    // =======================
+    // 🔥 suspicious fast ping
+
+    const diff =
+      now - (p.lastPing || 0);
+
+    if (
+      p.lastPing &&
+      diff < 5000
+    ) {
+
+      p.suspicious++;
+
+      console.log(
+        "⚠️ spam ping:",
+        userId
+      );
+    }
+
+    // =======================
+    p.lastPing = now;
+
+    p.disconnected = false;
+
+    p.pingCount++;
+
+    p.videoOk =
+      videoPlaying === true;
+
+    // =======================
+    // 🔥 احتساب الوقت الحقيقي
+
+    if (
+      videoPlaying === true
+    ) {
+
+      if (!p.lastWatchStart) {
+        p.lastWatchStart = now;
+      }
+
+    } else {
+
+      if (p.lastWatchStart) {
+
+        p.totalWatchMs +=
+          now - p.lastWatchStart;
+
+        p.lastWatchStart = 0;
+      }
+    }
+
+    // =======================
+    return res.json({
+
+      ok: true,
+
+      suspicious: p.suspicious,
+
+      totalWatchMs:
+        p.totalWatchMs
+    });
+
+  } catch (err) {
+
+    console.log(
+      "❌ presence/ping error",
+      err.message
+    );
+
+    return res.json({
+      ok: false
+    });
+  }
+});
+// =======================
 app.listen(PORT, () => {
   console.log("🚀 Server running on port", PORT);
 });
