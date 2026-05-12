@@ -22,10 +22,6 @@ if (!SUPABASE_KEY) {
 // =======================
 let vipChannels = new Set();
 
-let verificationMode = {
-  active: false,
-  channels: []
-};
 // =======================
 // 🔥 VERIFICATION PRESENCE SYSTEM
 
@@ -947,26 +943,29 @@ app.post("/admin/remove-vip", async (req, res) => {
 });
 
 // =======================
-app.post("/admin/start-verification", (req, res) => {
+app.post("/admin/start-presence-monitoring", (req, res) => {
+
   const key = req.headers["x-admin-key"];
-  if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
+  if (key !== ADMIN_KEY) {
+    return res.status(403).json({ ok: false });
+  }
 
-  verificationMode.active = true;
-  verificationMode.channels = req.body.channels || [];
+  const { channels } = req.body;
 
-  console.log("🧪 Verification ON:", verificationMode.channels);
+  for (const ch of channels) {
+    const clean = normalize(ch);
 
-  res.json({ ok: true });
-});
+    // نجهز session لكل قناة
+    verificationSessions[clean] = {
+      startedAt: Date.now(),
+      lastHeartbeat: Date.now(),
+      totalTime: 0,
+      completed: false,
+      expired: false
+    };
+  }
 
-app.post("/admin/stop-verification", (req, res) => {
-  const key = req.headers["x-admin-key"];
-  if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
-
-  verificationMode.active = false;
-  verificationMode.channels = [];
-
-  console.log("🛑 Verification OFF");
+  console.log("🟢 Presence monitoring started");
 
   res.json({ ok: true });
 });
