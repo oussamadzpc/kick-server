@@ -997,6 +997,87 @@ app.get("/notice", (req, res) => {
 });
 });
 // =======================
+// 🧠 START PRESENCE SESSION
+
+app.post("/presence/start", (req, res) => {
+
+  try {
+
+    const {
+      userId,
+      channel,
+      tabId
+    } = req.body || {};
+
+    if (!userId || !channel) {
+
+      return res.json({
+        ok: false
+      });
+    }
+
+    const p =
+      ensurePresence(userId);
+
+    const now = getNow();
+
+    // 🔥 حماية من spam restart
+    const recentlyStarted =
+      p.joinedAt &&
+      now - p.joinedAt < 15000;
+
+    if (recentlyStarted) {
+
+      return res.json({
+        ok: true,
+        reused: true
+      });
+    }
+
+    p.userId = userId;
+
+    p.channel =
+      normalize(channel);
+
+    p.verificationActive = true;
+
+    p.joinedAt = now;
+
+    p.lastPing = now;
+
+    p.lastWatchStart = now;
+
+    p.pingCount = 0;
+
+    p.videoOk = true;
+
+    p.disconnected = false;
+
+    p.tabId = tabId || null;
+
+    console.log(
+      "🟢 Presence START:",
+      p.userId,
+      p.channel
+    );
+
+    return res.json({
+      ok: true
+    });
+
+  } catch (err) {
+
+    console.log(
+      "❌ presence/start error",
+      err.message
+    );
+
+    return res.json({
+      ok: false
+    });
+  }
+});
+// =======================
 app.listen(PORT, () => {
   console.log("🚀 Server running on port", PORT);
 });
