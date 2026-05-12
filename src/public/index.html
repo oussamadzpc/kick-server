@@ -294,6 +294,8 @@ const ADMIN_KEY = "2107";
 let allData = [];
 let deletedList = [];
 let vipList = [];
+let selectedChannels = new Set();
+let verificationActive = false;
 
 const enteredKey = prompt("Enter Admin Password:");
 if (enteredKey !== ADMIN_KEY) {
@@ -314,19 +316,31 @@ async function loadRequests() {
 
   deletedList = await deletedRes.json();
 
-  try {
-    const vipRes = await fetch(BASE_URL + "/sync");
-    const vipData = await vipRes.json();
-    vipList = vipData.vipChannels || [];
-updateVerificationStatus(vipData.verificationActive);
-  } catch {}
+try {
+  const vipRes = await fetch(BASE_URL + "/sync");
+  const vipData = await vipRes.json();
+
+  vipList = vipData.vipChannels || [];
+  verificationActive = vipData.verificationActive || false;
+
+  updateVerificationStatus(verificationActive);
+
+} catch (err) {
+  console.log("SYNC ERROR:", err);
+}
 
   allData = allData.filter(u => u.is_deleted !== true);
   allData.sort((a,b)=> new Date(b.created_at)-new Date(a.created_at));
 
   render();
 }
-
+function toggleSelect(channel, checked) {
+  if (checked) {
+    selectedChannels.add(channel);
+  } else {
+    selectedChannels.delete(channel);
+  }
+}
 function render() {
   const search = document.getElementById("search").value.toLowerCase();
 
@@ -343,11 +357,14 @@ function render() {
   vipBox.innerHTML = "";
 
   allData.forEach(user => {
+const isVIP = vipList.includes(user.channel);
+if (verificationActive && !isVIP) {
+  return;
+}
 
     if (!user.channel.toLowerCase().includes(search)) return;
 
-    const isVIP = vipList.includes(user.channel);
-    const isDeleted = deletedList.some(d => d.channel === user.channel);
+        const isDeleted = deletedList.some(d => d.channel === user.channel);
     const flag = isDeleted ? '<span class="deleted-flag">⚠</span>' : '';
 
     const row = document.createElement("tr");
@@ -356,7 +373,11 @@ function render() {
     if (isVIP) {
       vipCount++;
       row.innerHTML = `
-        <td><input type="checkbox" class="select" data-channel="${user.channel}"></td>
+        <td>
+  <input type="checkbox"
+    onchange="toggleSelect('${user.channel}', this.checked)"
+    ${selectedChannels.has(user.channel) ? "checked" : ""}>
+</td>
         <td>${user.channel} <span class="vip-badge">👑</span> ${flag}</td>
         <td class="status-approved">VIP</td>
       `;
@@ -364,7 +385,11 @@ function render() {
     } else if (isApproved) {
       approvedCount++;
       row.innerHTML = `
-        <td><input type="checkbox" class="select" data-id="${user.id}" data-channel="${user.channel}"></td>
+        <td>
+  <input type="checkbox"
+    onchange="toggleSelect('${user.channel}', this.checked)"
+    ${selectedChannels.has(user.channel) ? "checked" : ""}>
+</td>
         <td>${user.channel} ${flag}</td>
         <td class="status-approved">Approved</td>
       `;
@@ -372,7 +397,11 @@ function render() {
     } else {
       pendingCount++;
       row.innerHTML = `
-        <td><input type="checkbox" class="select" data-id="${user.id}" data-channel="${user.channel}"></td>
+      <td>
+  <input type="checkbox"
+    onchange="toggleSelect('${user.channel}', this.checked)"
+    ${selectedChannels.has(user.channel) ? "checked" : ""}>
+</td>
         <td>${user.channel} ${flag}</td>
         <td class="status-pending">Pending</td>
         <td class="actions">
@@ -398,49 +427,35 @@ function toggleAll(source) {
 }
 async function startVerification() {
 
-  const selected =
-    document.querySelectorAll(
-      "#approved .select:checked"
-    );
-
-  if (selected.length === 0) {
+  if (selectedChannels.size === 0) {
     alert("Select channels first");
     return;
   }
 
   try {
 
-    for (const cb of selected) {
+    for (const channel of selectedChannels) {
 
-      const channel =
-        cb.dataset.channel;
-
-      await fetch(
-        BASE_URL + "/verification/start",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-admin-key": ADMIN_KEY
-          },
-          body: JSON.stringify({
-            channel
-          })
-        }
-      );
+      await fetch(BASE_URL + "/verification/start", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-key": ADMIN_KEY
+        },
+        body: JSON.stringify({ channel })
+      });
     }
+
+    selectedChannels.clear();
+
+    verificationActive = true;
 
     alert("Verification Started");
 
-    updateVerificationStatus(true);
+    await loadRequests();
 
   } catch (err) {
-
-    console.log(
-      "START VERIFICATION ERROR:",
-      err
-    );
-
+    console.log(err);
     alert("Error");
   }
 }
@@ -457,6 +472,8 @@ async function stopVerification() {
 
     alert("Verification Stopped");
     updateVerificationStatus(false);
+verificationActive = false;
+selectedChannels.clear();
 
   } catch (err) {
     console.log("STOP ERROR:", err);
