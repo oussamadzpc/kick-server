@@ -26,7 +26,23 @@ let verificationMode = {
   active: false,
   channels: []
 };
+// =======================
+// 🔥 VERIFICATION PRESENCE SYSTEM
 
+let verificationSessions = {};
+
+// شكل الجلسة:
+// verificationSessions[channel] = {
+//   verified: false,
+//   startedAt: 0,
+//   lastHeartbeat: 0,
+//   totalTime: 0,
+//   completed: false,
+//   expired: false
+// };
+
+const VERIFICATION_TIMEOUT = 1000 * 60 * 5; // 5 minutes
+const HEARTBEAT_LIMIT = 1000 * 25; // 25 sec
 // =======================
 let cachedChannels = [];
 let liveCache = {};
