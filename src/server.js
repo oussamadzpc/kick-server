@@ -1351,39 +1351,7 @@ app.post("/verification/start", (req, res) => {
     });
   }
 });
-// =======================
-// ✅ ATTENDANCE CONFIRMATION (FROM EXTENSION)
 
-app.post("/attendance/confirm", (req, res) => {
-
-  try {
-
-    const { userId, channel } = req.body || {};
-
-    if (!userId || !channel) {
-      return res.json({ ok: false });
-    }
-
-    const cleanChannel = normalize(channel);
-
-    attendanceMemory[userId] = {
-      userId,
-      channel: cleanChannel,
-      confirmed: true,
-      confirmedAt: Date.now()
-    };
-
-    console.log("✅ ATTENDANCE CONFIRMED:", userId, cleanChannel);
-
-    return res.json({ ok: true });
-
-  } catch (err) {
-
-    console.log("❌ attendance error:", err.message);
-
-    return res.json({ ok: false });
-  }
-});
 // =======================
 let verificationSessions = {};
 
@@ -1433,7 +1401,6 @@ app.get("/admin/dashboard-status", (req, res) => {
   }
 
   const now = Date.now();
-
   const result = {};
 
   for (const channel in verificationSessions) {
@@ -1449,28 +1416,30 @@ app.get("/admin/dashboard-status", (req, res) => {
 
     if (diff < 2 * 60 * 1000) {
       status = "green";
-    } 
-    else if (diff < 10 * 60 * 1000) {
+    } else if (diff < 10 * 60 * 1000) {
       status = "yellow";
     }
-const attendance = Object.values(attendanceMemory)
-  .find(a => normalize(a.channel) === channel);
-result[channel] = {
-  firstSeen,
-  lastSeen,
-  lastSeenAgo: diff,
-  totalTime: session.totalTime || 0,
-  status,
-  completed: session.completed || false,
-  expired: session.expired || false,
 
-  attendance: attendance ? {
-    confirmed: true,
-    confirmedAt: attendance.confirmedAt
-  } : {
-    confirmed: false
+    const attendance = Object.values(attendanceMemory)
+      .find(a => normalize(a.channel) === channel);
+
+    result[channel] = {
+      firstSeen,
+      lastSeen,
+      lastSeenAgo: diff,
+      totalTime: session.totalTime || 0,
+      status,
+      completed: session.completed || false,
+      expired: session.expired || false,
+
+      attendance: attendance ? {
+        confirmed: true,
+        confirmedAt: attendance.confirmedAt
+      } : {
+        confirmed: false
+      }
+    };
   }
-};
 
   return res.json(result);
 });
