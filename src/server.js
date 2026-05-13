@@ -517,6 +517,39 @@ If mode = mix:
 If mode = arabic:
 - Arabic Type: ${arabicType}
 - Region: ${region}
+━━━━━━━━━━━━━━━━━━
+LANGUAGE HARD LOCK (NEW SYSTEM)
+━━━━━━━━━━━━━━━━━━
+
+You MUST obey language mode strictly:
+
+IF mode = "english":
+- Output ONLY English sentences
+- ZERO Arabic, ZERO French
+
+IF mode = "french":
+- Output ONLY French sentences
+- ZERO Arabic, ZERO English
+
+IF mode = "arabic":
+
+  You MUST obey dialect strictly:
+
+  IF arabic_type = "darija":
+    - Use Moroccan Darija (Arabic script OR natural darija style)
+    - No MSA (no formal Arabic)
+
+  IF arabic_type = "egyptian":
+    - Egyptian slang only
+
+  IF arabic_type = "saudi":
+    - Gulf / Saudi dialect only
+
+  IF region affects slang:
+    - adjust vocabulary accordingly
+
+IF mode = "mix":
+- Only then mix languages naturally (max 2 languages per comment)
 
 ━━━━━━━━━━━━━━━━━━
 ARABIC RULES (VERY IMPORTANT)
@@ -601,11 +634,38 @@ REALISM RULE
 - Natural messy human reactions
 
 ━━━━━━━━━━━━━━━━━━
-LENGTH RULE
+HUMAN CHAT SPEED RULE (NEW)
 ━━━━━━━━━━━━━━━━━━
-- 2 to 8 words max
-- Short emotional reactions only
 
+- Each comment must feel typed in real-time chat
+- No long sentences
+- No structured grammar
+- Natural rhythm variation:
+
+50% → 2–4 words
+40% → 4–7 words
+10% → 7–10 words (rare reactions)
+
+No repetitive timing patterns
+No formal writing
+━━━━━━━━━━━━━━━━━━
+STREAM BINDING RULE (CRITICAL FIX)
+━━━━━━━━━━━━━━━━━━
+
+Every comment MUST contain at least ONE:
+
+- reaction to action
+- reaction to emotion
+- reaction to gameplay
+- reaction to moment
+
+NEVER:
+- general statements
+- life talk
+- greetings
+- disconnected words
+
+If no stream context exists → fallback ONLY
 ━━━━━━━━━━━━━━━━━━
 EXAMPLES CONTEXT
 ━━━━━━━━━━━━━━━━━━
