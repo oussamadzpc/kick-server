@@ -1042,7 +1042,7 @@ globalNotice = {
   id: Date.now(),
   version: Date.now(),
   text: String(text).trim(),
-  type: type || "normal",
+  type: req.body.type || "normal",
   createdAt: Date.now()
 };
     console.log("📢 NOTICE SENT:", text);
