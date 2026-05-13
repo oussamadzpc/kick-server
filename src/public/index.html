@@ -203,7 +203,49 @@ td:first-child {
       margin-bottom:10px;
     "
   ></textarea>
+<div style="
+  margin-bottom:12px;
+  display:flex;
+  gap:20px;
+  align-items:center;
+">
 
+  <label style="
+    display:flex;
+    align-items:center;
+    gap:6px;
+    cursor:pointer;
+  ">
+
+    <input
+      type="radio"
+      name="noticeType"
+      value="normal"
+      checked
+    >
+
+    Normal Notice
+
+  </label>
+
+  <label style="
+    display:flex;
+    align-items:center;
+    gap:6px;
+    cursor:pointer;
+  ">
+
+    <input
+      type="radio"
+      name="noticeType"
+      value="attendance"
+    >
+
+    Attendance Confirmation
+
+  </label>
+
+</div>
   <button
     onclick="sendNotice()"
     style="
@@ -657,15 +699,20 @@ async function sendNotice() {
   }
 
   try {
-
+const noticeType =
+  document.querySelector(
+    'input[name="noticeType"]:checked'
+  )?.value || "normal";
     const res = await fetch(BASE_URL + "/admin/send-notice", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "x-admin-key": ADMIN_KEY
       },
-      body: JSON.stringify({ text })
-    });
+    body: JSON.stringify({
+  text,
+  type: noticeType
+})
 
     const data = await res.json();
 
