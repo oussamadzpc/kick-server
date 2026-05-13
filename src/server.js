@@ -154,6 +154,25 @@ setInterval(() => {
   }
 
 }, 30000);
+
+// =======================
+// ✅ ATTENDANCE MEMORY
+
+let attendanceMemory = {};
+
+/*
+
+attendanceMemory[userId] = {
+
+  userId,
+  channel,
+
+  confirmed: true,
+
+  confirmedAt: 0
+}
+
+*/
 // =======================
 // 🔔 GLOBAL ADMIN NOTICE
 let globalNotice = {
@@ -163,6 +182,36 @@ let globalNotice = {
   createdAt: null,
   version: 0
 };
+// =======================
+// ✅ ATTENDANCE SESSION
+
+let attendanceSession = {
+
+  active: false,
+
+  id: null,
+
+  text: "",
+
+  startedAt: null,
+
+  users: {}
+
+};
+
+/*
+شكل users:
+
+users[userId] = {
+
+  userId,
+  channel,
+
+  confirmed: true,
+
+  confirmedAt: 123456789
+}
+*/
 
 function isDuplicate(channel, text) {
   if (!commentHistory[channel]) {
@@ -1302,7 +1351,39 @@ app.post("/verification/start", (req, res) => {
     });
   }
 });
+// =======================
+// ✅ ATTENDANCE CONFIRMATION (FROM EXTENSION)
 
+app.post("/attendance/confirm", (req, res) => {
+
+  try {
+
+    const { userId, channel } = req.body || {};
+
+    if (!userId || !channel) {
+      return res.json({ ok: false });
+    }
+
+    const cleanChannel = normalize(channel);
+
+    attendanceMemory[userId] = {
+      userId,
+      channel: cleanChannel,
+      confirmed: true,
+      confirmedAt: Date.now()
+    };
+
+    console.log("✅ ATTENDANCE CONFIRMED:", userId, cleanChannel);
+
+    return res.json({ ok: true });
+
+  } catch (err) {
+
+    console.log("❌ attendance error:", err.message);
+
+    return res.json({ ok: false });
+  }
+});
 // =======================
 let verificationSessions = {};
 
@@ -1372,17 +1453,24 @@ app.get("/admin/dashboard-status", (req, res) => {
     else if (diff < 10 * 60 * 1000) {
       status = "yellow";
     }
+const attendance = Object.values(attendanceMemory)
+  .find(a => normalize(a.channel) === channel);
+result[channel] = {
+  firstSeen,
+  lastSeen,
+  lastSeenAgo: diff,
+  totalTime: session.totalTime || 0,
+  status,
+  completed: session.completed || false,
+  expired: session.expired || false,
 
-    result[channel] = {
-      firstSeen,
-      lastSeen,
-      lastSeenAgo: diff,
-      totalTime: session.totalTime || 0,
-      status,
-      completed: session.completed || false,
-      expired: session.expired || false
-    };
+  attendance: attendance ? {
+    confirmed: true,
+    confirmedAt: attendance.confirmedAt
+  } : {
+    confirmed: false
   }
+};
 
   return res.json(result);
 });
@@ -1411,6 +1499,34 @@ app.post("/admin/stop-verification", (req, res) => {
   return res.json({
     ok: true
   });
+});
+app.post("/attendance/confirm", (req, res) => {
+  try {
+
+    const { userId, channel } = req.body;
+
+    if (!userId || !channel) {
+      return res.json({ ok: false });
+    }
+
+    console.log("📥 Attendance confirmed:", userId, channel);
+
+    // هنا تقدر تخزن الحضور أو تعطي نقاط أو تسجل DB
+    // مثال بسيط (مؤقت):
+    if (!presenceMemory[userId]) {
+      presenceMemory[userId] = {};
+    }
+
+    presenceMemory[userId].attended = true;
+    presenceMemory[userId].channel = channel;
+    presenceMemory[userId].time = Date.now();
+
+    return res.json({ ok: true });
+
+  } catch (err) {
+    console.log("attendance error:", err.message);
+    return res.json({ ok: false });
+  }
 });
 // =======================
 app.listen(PORT, () => {
