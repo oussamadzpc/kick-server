@@ -50,6 +50,7 @@ let stateMemory = {};
 
 let commentPool = {};
 let channelContext = {};
+let aiSceneMemory = {};
 // 🔥 COMMENT MEMORY (FIX)
 let commentHistory = {};
 // =======================
@@ -352,7 +353,36 @@ function fallbackComments(channel = "") {
     "واو 🔥"
   ];
 }
+function isGoodComment(text) {
+  if (!text) return false;
 
+  const t = text.toLowerCase().trim();
+
+  // ❌ reject too short / too long
+  if (t.length < 2 || t.length > 80) return false;
+
+  // ❌ generic spam words
+  const badWords = [
+    "nice",
+    "gg",
+    "lol",
+    "wow",
+    "ok",
+    "😂",
+    "🔥"
+  ];
+
+  // إذا تعليق فقط رموز أو كلمة عامة
+  if (badWords.includes(t)) return false;
+
+  // ❌ repeated emojis only
+  if (/^[\p{Emoji}\s]+$/u.test(t)) return false;
+
+  // ❌ no meaning sentences
+  if (!/[a-zA-Z\u0600-\u06FF]/.test(t)) return false;
+
+  return true;
+}
 // =======================
 // 🔥 CHANNEL PERSONALITY DEFAULT (optional fallback system)
 function getChannelProfile(channel) {
@@ -363,7 +393,29 @@ function getChannelProfile(channel) {
     chatSample: []
   };
 }
+function buildAIScene(channel) {
+  const ctx = channelContext[channel] || {};
 
+  return {
+    channel,
+
+    tone: ctx.tone || "hype",
+    audienceType: ctx.audienceType || "gaming",
+    intensity: ctx.intensity || "medium",
+
+    // 🔥 تحويل intensity إلى mood واضح
+    mood:
+      ctx.intensity === "high" ? "HYPE"
+      : ctx.intensity === "low" ? "calm"
+      : "normal",
+
+    topic: ctx.audienceType || "general",
+
+    chatSamples: (ctx.chatSample || []).slice(0, 8),
+
+    timestamp: Date.now()
+  };
+}
 // =======================
 async function generateComments(channel) {
   console.log("🚨 generateComments CALLED for:", channel);
@@ -371,7 +423,7 @@ async function generateComments(channel) {
   try {
     if (!GROQ_API_KEY) return fallbackComments();
 
-    const ctx = getChannelProfile(channel);
+    const ctx = buildAIScene(channel);
 
     const chat = (ctx.chatSample || []).slice(0, 8);
 
@@ -405,7 +457,19 @@ CHANNEL BEHAVIOR PROFILE (IMPORTANT)
 Tone: ${tone}
 Audience Type: ${audienceType}
 Intensity: ${intensity}
+━━━━━━━━━━━━━━━━━━
+LIVE SCENE CONTEXT (NEW UPGRADE)
+━━━━━━━━━━━━━━━━━━
+Current Mood: ${ctx.mood}
+Topic: ${ctx.topic}
+Intensity Level: ${ctx.intensity}
 
+Recent Chat:
+${chat.length ? chat.map(x => "- " + x).join("\n") : "- no chat data"}
+
+IMPORTANT:
+Base your comments ONLY on this scene.
+Do NOT generate random unrelated reactions.
 ━━━━━━━━━━━━━━━━━━
 STREAM CONTEXT RULE (CRITICAL FIX)
 ━━━━━━━━━━━━━━━━━━
@@ -596,9 +660,10 @@ Only pure JSON array.
       const parsed = safeParseComments(text);
 
       if (parsed.length) {
-        finalComments = parsed.map(t => ({
-          text: cleanText(t)
-        }));
+        finalComments = parsed
+  .map(t => cleanText(t))
+  .filter(isGoodComment)
+  .map(t => ({ text: t }));
       }
     }
 
