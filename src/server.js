@@ -1031,17 +1031,18 @@ app.post("/admin/send-notice", (req, res) => {
   }
 
   try {
-    const { text } = req.body;
+    const { text, type } = req.body;
 
     if (!text || text.length < 2) {
       return res.json({ ok: false });
     }
 
-  globalNotice = {
+globalNotice = {
   active: true,
   id: Date.now(),
-  version: Date.now(), // 🔥 مهم جداً
+  version: Date.now(),
   text: String(text).trim(),
+  type: type || "normal",
   createdAt: Date.now()
 };
     console.log("📢 NOTICE SENT:", text);
