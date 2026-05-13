@@ -699,20 +699,23 @@ async function sendNotice() {
   }
 
   try {
-const noticeType =
-  document.querySelector(
-    'input[name="noticeType"]:checked'
-  )?.value || "normal";
+
+    const noticeType =
+      document.querySelector(
+        'input[name="noticeType"]:checked'
+      )?.value || "normal";
+
     const res = await fetch(BASE_URL + "/admin/send-notice", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "x-admin-key": ADMIN_KEY
       },
-    body: JSON.stringify({
-  text,
-  type: noticeType
-})
+      body: JSON.stringify({
+        text,
+        type: noticeType
+      })
+    }); // ✅ هذا كان ناقص
 
     const data = await res.json();
 
