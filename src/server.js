@@ -28,16 +28,6 @@ let verificationMode = {
 // =======================
 // 🔥 VERIFICATION PRESENCE SYSTEM
 
-// شكل الجلسة:
-// verificationSessions[channel] = {
-//   verified: false,
-//   startedAt: 0,
-//   lastHeartbeat: 0,
-//   totalTime: 0,
-//   completed: false,
-//   expired: false
-// };
-
 const VERIFICATION_TIMEOUT = 1000 * 60 * 5; // 5 minutes
 const HEARTBEAT_LIMIT = 1000 * 25; // 25 sec
 // =======================
@@ -58,64 +48,24 @@ let commentHistory = {};
 
 let presenceMemory = {};
 
-// شكل البيانات:
-/*
-presenceMemory[userId] = {
-
-  userId,
-  channel,
-
-  verificationActive: false,
-
-  joinedAt: 0,
-  lastPing: 0,
-
-  totalWatchMs: 0,
-  lastWatchStart: 0,
-
-  pingCount: 0,
-
-  videoOk: false,
-
-  suspicious: 0,
-
-  disconnected: false,
-
-  tabId: null
-}
-*/
-
 // =======================
 function ensurePresence(userId) {
-
   if (!presenceMemory[userId]) {
-
     presenceMemory[userId] = {
-
       userId,
-
       channel: null,
-
       verificationActive: false,
-
       joinedAt: 0,
       lastPing: 0,
-
       totalWatchMs: 0,
       lastWatchStart: 0,
-
       pingCount: 0,
-
       videoOk: false,
-
       suspicious: 0,
-
       disconnected: false,
-
       tabId: null
     };
   }
-
   return presenceMemory[userId];
 }
 
@@ -128,32 +78,17 @@ function getNow() {
 // 🧠 CLEAN DEAD USERS
 
 setInterval(() => {
-	
   const now = getNow();
-
   for (const userId in presenceMemory) {
-
     const p = presenceMemory[userId];
-
-    // إذا اختفى أكثر من 2 دقيقة
-    if (
-      p.lastPing &&
-      now - p.lastPing > 120000
-    ) {
-
+    if (p.lastPing && now - p.lastPing > 120000) {
       p.disconnected = true;
-
-      // وقف احتساب الوقت
       if (p.lastWatchStart) {
-
-        p.totalWatchMs +=
-          now - p.lastWatchStart;
-
+        p.totalWatchMs += now - p.lastWatchStart;
         p.lastWatchStart = 0;
       }
     }
   }
-
 }, 30000);
 
 // =======================
@@ -161,19 +96,6 @@ setInterval(() => {
 
 let attendanceMemory = {};
 
-/*
-
-attendanceMemory[userId] = {
-
-  userId,
-  channel,
-
-  confirmed: true,
-
-  confirmedAt: 0
-}
-
-*/
 // =======================
 // 🔔 GLOBAL ADMIN NOTICE
 let globalNotice = {
@@ -187,54 +109,28 @@ let globalNotice = {
 // ✅ ATTENDANCE SESSION
 
 let attendanceSession = {
-
   active: false,
-
   id: null,
-
   text: "",
-
   startedAt: null,
-
   users: {}
-
 };
-
-/*
-شكل users:
-
-users[userId] = {
-
-  userId,
-  channel,
-
-  confirmed: true,
-
-  confirmedAt: 123456789
-}
-*/
 
 function isDuplicate(channel, text) {
   if (!commentHistory[channel]) {
     commentHistory[channel] = [];
   }
-
   const normalizedText = normalize(
     typeof text === "string" ? text : text?.text || ""
   );
-
   const history = commentHistory[channel];
-
   if (history.includes(normalizedText)) {
     return true;
   }
-
   history.push(normalizedText);
-
   if (history.length > 40) {
     history.shift();
   }
-
   return false;
 }
 
@@ -253,7 +149,973 @@ function normalize(str) {
     .toLowerCase()
     .replace(/\s+/g, " ")
     .normalize("NFKC");
-} 
+}
+
+// =======================
+// 🔥 DIALECT SYSTEM (NEW - FIXED)
+// =======================
+
+const DIALECT_PROFILES = {
+  // 🇹🇳 Tunisian Darija
+  tn: {
+    name: "Tunisian Darija",
+    script: "arabic",
+    features: [
+      "Use 'شنوة' not 'شنو' or 'ايش'",
+      "Use 'هاذا/هاذي' not 'هذا/هذه'",
+      "Use 'برشا' for 'very/much'",
+      "Use 'يعيشك' for 'thank you'",
+      "Use 'باهي' for 'good/ok'",
+      "Use 'فاما' for 'understand'",
+      "Use 'شبيك' for 'what's wrong'",
+      "Use 'نحب' not 'أحب'",
+      "Use 'نقدر' not 'أقدر'",
+      "Use 'نحب نروح' not 'أريد أن أذهب'",
+      "Use 'برشا' not 'كثير'",
+      "Use 'شباب' for 'guys'",
+      "Use 'يا ساتر' for shock",
+      "Use 'والله يا عظمة' for amazement"
+    ],
+    examples: [
+      "شنوة هاذا يا ساتر",
+      "برافو عليك خويا",
+      "هاذي قوية برشا",
+      "والله يا عظمة",
+      "يعيشك على اللعبة",
+      "باهي باهي كيفاش",
+      "شبيك خويا هاذي نار",
+      "نحب الطريقة هاذي",
+      "شنوة صار هنا يا ساتر",
+      "برشا برشا قوية"
+    ]
+  },
+
+  // 🇩🇿 Algerian Darija
+  dz: {
+    name: "Algerian Darija",
+    script: "arabic",
+    features: [
+      "Use 'واش' not 'شنو' or 'ايش'",
+      "Use 'هاذ/هاذي' not 'هذا/هذه'",
+      "Use 'بزاف' for 'very/much'",
+      "Use 'صحا' for 'thank you'",
+      "Use 'واخا' for 'ok'",
+      "Use 'فهمت' not 'فهمت' (MSA)",
+      "Use 'كيفاه' for 'how'",
+      "Use 'نحب' not 'أحب'",
+      "Use 'نقدر' not 'أقدر'",
+      "Use 'يا ربي' for shock",
+      "Use 'هاذي نار' for hype",
+      "Use 'برك الله' for praise"
+    ],
+    examples: [
+      "واش هاذ يا ربي",
+      "صحا عليك خويا",
+      "هاذي نار بزاف",
+      "برك الله فيك",
+      "واخا واخا كيفاه",
+      "بزاف بزاف قوية",
+      "نحب الطريقة هاذي",
+      "واش صار هنا يا ربي",
+      "هاذي لعبة بزاف",
+      "صحا خويا راه قوي"
+    ]
+  },
+
+  // 🇲🇦 Moroccan Darija
+  ma: {
+    name: "Moroccan Darija",
+    script: "arabic",
+    features: [
+      "Use 'شنو' or 'اش' for 'what'",
+      "Use 'هادا/هادي' not 'هذا/هذه'",
+      "Use 'بزاف' for 'very/much'",
+      "Use 'الله يعطيك الصحة' for thanks",
+      "Use 'واخا' for 'ok'",
+      "Use 'صافي' for 'enough/done'",
+      "Use 'بغيت' not 'أريد'",
+      "Use 'قدرت' not 'أستطيع'",
+      "Use 'يا سلام' for amazement",
+      "Use 'هادي زوينة' for 'this is nice'",
+      "Use 'واو' for wow",
+      "Use 'عندي' not 'لدي'"
+    ],
+    examples: [
+      "شنو هادا يا سلام",
+      "الله يعطيك الصحة",
+      "هادي زوينة بزاف",
+      "واخا واخا كيفاش",
+      "صافي صافي فهمت",
+      "بغيت نلعب بحالك",
+      "هادي لعبة قوية",
+      "يا سلام على اللعبة",
+      "بزاف بزاف زوينة",
+      "شنو كاين هنا"
+    ]
+  },
+
+  // 🇪🇬 Egyptian
+  eg: {
+    name: "Egyptian Arabic",
+    script: "arabic",
+    features: [
+      "Use 'ايه' for 'what'",
+      "Use 'ده/دي' not 'هذا/هذه'",
+      "Use 'قوي/جامد' for 'strong'",
+      "Use 'عاش' for hype",
+      "Use 'يا جدع' for 'dude'",
+      "Use 'يا ساتر' for shock",
+      "Use 'ربنا يستر' for 'oh god'",
+      "Use 'عظمة' for 'great'",
+      "Use 'حلو' for 'nice'",
+      "Use 'كده' for 'like this'",
+      "Use 'طبعاً' for 'of course'",
+      "Use 'بجد' for 'seriously'"
+    ],
+    examples: [
+      "ايه ده يا ساتر",
+      "عاش يا جدع",
+      "ده جامد اوي",
+      "يا ساتر على اللعبة",
+      "عظمة عظمة بجد",
+      "حلو قوي كده",
+      "ربنا يستر عليك",
+      "يا جدع انت مجنون",
+      "ده فيلم مش لعبة",
+      "عاش يا بطل"
+    ]
+  },
+
+  // 🇸🇦 Saudi / Gulf
+  sa: {
+    name: "Saudi/Gulf Arabic",
+    script: "arabic",
+    features: [
+      "Use 'وش' or 'ايش' for 'what'",
+      "Use 'هذا/هذي' (gulf style)",
+      "Use 'قوي' for 'strong'",
+      "Use 'ما شاء الله' for praise",
+      "Use 'يعطيك العافية' for thanks",
+      "Use 'يا حبيبي' for 'dude'",
+      "Use 'طيب' for 'ok/nice'",
+      "Use 'هالحين' for 'now'",
+      "Use 'يا سلام' for amazement",
+      "Use 'شرايك' for 'what do you think'",
+      "Use 'يا مرحبا' for welcome",
+      "Use 'الله يعطيك' for praise"
+    ],
+    examples: [
+      "وش هاللعب يا سلام",
+      "ما شاء الله تبارك",
+      "يعطيك العافية",
+      "يا حبيبي هذا قوي",
+      "طيب طيب شرايك",
+      "هالحين صار شي",
+      "الله يعطيك العافية",
+      "ما شاء الله عليك",
+      "وش فيه هالحركة",
+      "يا مرحبا باللعبة"
+    ]
+  },
+
+  // 🇯🇴 Jordanian
+  jo: {
+    name: "Jordanian Arabic",
+    script: "arabic",
+    features: [
+      "Use 'ايش' for 'what'",
+      "Use 'هاد/هاي' for 'this'",
+      "Use 'زاكي' for 'smart/nice'",
+      "Use 'يا ساتر' for shock",
+      "Use 'عاش' for hype",
+      "Use 'الله يعطيك' for thanks",
+      "Use 'كيف' for 'how'",
+      "Use 'منيح' for 'good'",
+      "Use 'هاي' for 'this (fem)'",
+      "Use 'يلا' for 'let's go'",
+      "Use 'شو' for 'what'",
+      "Use 'كتير' for 'very'"
+    ],
+    examples: [
+      "ايش هاد يا ساتر",
+      "عاش يا زلمة",
+      "هاي زاكي كتير",
+      "الله يعطيك الصحة",
+      "منيح منيح كيف",
+      "شو صار هون",
+      "يلا يلا نلعب",
+      "هاي لعبة كتير حلوة",
+      "يا ساتر شو هاد",
+      "زاكي زاكي عاش"
+    ]
+  },
+
+  // 🇱🇾 Libyan
+  ly: {
+    name: "Libyan Arabic",
+    script: "arabic",
+    features: [
+      "Use 'اش' or 'شنو' for 'what'",
+      "Use 'هادا/هادي' for 'this'",
+      "Use 'ناري' or 'نار' for 'fire'",
+      "Use 'يا ربي' for shock",
+      "Use 'برك الله' for praise",
+      "Use 'صحيح' for 'true/right'",
+      "Use 'والله' for emphasis",
+      "Use 'شباب' for 'guys'",
+      "Use 'هادي نار' for hype",
+      "Use 'يا ساتر' for shock",
+      "Use 'كيفاش' for 'how'",
+      "Use 'بزاف' for 'very'"
+    ],
+    examples: [
+      "اش هادا يا ربي",
+      "ناري ناري على اللعبة",
+      "برك الله فيك",
+      "هادي نار بزاف",
+      "صحيح صحيح كيفاش",
+      "والله يا ربي",
+      "شباب هادي قوية",
+      "يا ساتر اش صار",
+      "هادي لعبة نار",
+      "برك الله عليك"
+    ]
+  },
+
+  // 🇲🇷 Mauritanian / Hassaniya
+  mr: {
+    name: "Hassaniya / Mauritanian",
+    script: "arabic",
+    features: [
+      "Use 'شنو' for 'what'",
+      "Use 'هادا/هادي' for 'this'",
+      "Use 'بارك الله' for praise",
+      "Use 'يا ربي' for shock",
+      "Use 'صح' for 'true'",
+      "Use 'والله' for emphasis",
+      "Use 'زين' for 'good'",
+      "Use 'هايل' for 'great'",
+      "Use 'شباب' for 'guys'",
+      "Use 'نار' for 'fire'"
+    ],
+    examples: [
+      "شنو هادا يا ربي",
+      "بارك الله فيك",
+      "هادي زين بزاف",
+      "صح صح والله",
+      "هايل هايل على اللعبة",
+      "يا ربي شنو صار",
+      "شباب هادي نار",
+      "والله يا زين",
+      "هادي لعبة قوية",
+      "بارك الله عليك"
+    ]
+  },
+
+  // 🇧🇭 Bahrain / GCC
+  bh: {
+    name: "Bahraini / GCC Arabic",
+    script: "arabic",
+    features: [
+      "Use 'وش' or 'ايش' for 'what'",
+      "Use 'هذا/هذي' for 'this'",
+      "Use 'ما شاء الله' for praise",
+      "Use 'يعطيك العافية' for thanks",
+      "Use 'يا سلام' for amazement",
+      "Use 'هالحين' for 'now'",
+      "Use 'شرايك' for 'what do you think'",
+      "Use 'طيب' for 'ok'",
+      "Use 'الله يعطيك' for praise",
+      "Use 'يا هلا' for welcome"
+    ],
+    examples: [
+      "وش هاللعب يا سلام",
+      "ما شاء الله تبارك",
+      "يعطيك العافية",
+      "يا هلا باللعبة",
+      "طيب طيب شرايك",
+      "هالحين صار شي",
+      "الله يعطيك العافية",
+      "ما شاء الله عليك",
+      "وش فيه هالحركة",
+      "يا سلام على اللعب"
+    ]
+  },
+
+  // 🇸🇩 Sudanese
+  sd: {
+    name: "Sudanese Arabic",
+    script: "arabic",
+    features: [
+      "Use 'شنو' for 'what'",
+      "Use 'ده/دي' for 'this'",
+      "Use 'جامد' for 'strong'",
+      "Use 'عظمة' for 'great'",
+      "Use 'يا ساتر' for shock",
+      "Use 'الله يديك' for thanks",
+      "Use 'كيف' for 'how'",
+      "Use 'تمام' for 'ok'",
+      "Use 'هاي' for 'this (fem)'",
+      "Use 'يلا' for 'let's go'"
+    ],
+    examples: [
+      "شنو ده يا ساتر",
+      "جامد جامد عظمة",
+      "الله يديك الصحة",
+      "تمام تمام كيف",
+      "هاي لعبة جامدة",
+      "يلا يلا نكمل",
+      "يا ساتر شنو صار",
+      "عظمة عظمة بجد",
+      "ده فيلم مش لعبة",
+      "الله يديك يا بطل"
+    ]
+  },
+
+  // 🇾🇪 Yemeni
+  ye: {
+    name: "Yemeni Arabic",
+    script: "arabic",
+    features: [
+      "Use 'ايش' or 'وش' for 'what'",
+      "Use 'هذا/هذي' for 'this'",
+      "Use 'ما شاء الله' for praise",
+      "Use 'الله يعطيك' for thanks",
+      "Use 'يا سلام' for amazement",
+      "Use 'طيب' for 'ok'",
+      "Use 'كيف' for 'how'",
+      "Use 'تمام' for 'ok'",
+      "Use 'هالحين' for 'now'",
+      "Use 'شرايك' for 'what do you think'"
+    ],
+    examples: [
+      "ايش هاللعب يا سلام",
+      "ما شاء الله تبارك",
+      "الله يعطيك الصحة",
+      "طيب طيب كيف",
+      "هالحين صار شي",
+      "تمام تمام شرايك",
+      "ما شاء الله عليك",
+      "ايش فيه هالحركة",
+      "يا سلام على اللعب",
+      "الله يعطيك يا بطل"
+    ]
+  },
+
+  // 🇮🇶 Iraqi
+  iq: {
+    name: "Iraqi Arabic",
+    script: "arabic",
+    features: [
+      "Use 'شنو' for 'what'",
+      "Use 'هذا/هذي' for 'this'",
+      "Use 'جامد' for 'strong'",
+      "Use 'عاش' for hype",
+      "Use 'يا ساتر' for shock",
+      "Use 'الله يوفقك' for thanks",
+      "Use 'كيف' for 'how'",
+      "Use 'تمام' for 'ok'",
+      "Use 'هاي' for 'this (fem)'",
+      "Use 'يلا' for 'let's go'",
+      "Use 'والله' for emphasis"
+    ],
+    examples: [
+      "شنو هذا يا ساتر",
+      "عاش يا بطل",
+      "جامد جامد والله",
+      "الله يوفقك",
+      "تمام تمام كيف",
+      "هاي لعبة جامدة",
+      "يلا يلا نكمل",
+      "يا ساتر شنو صار",
+      "عاش عاش يا بطل",
+      "والله جامد"
+    ]
+  },
+
+  // 🇰🇼 Kuwaiti
+  kw: {
+    name: "Kuwaiti Arabic",
+    script: "arabic",
+    features: [
+      "Use 'ايش' or 'وش' for 'what'",
+      "Use 'هذا/هذي' for 'this'",
+      "Use 'ما شاء الله' for praise",
+      "Use 'يعطيك العافية' for thanks",
+      "Use 'يا سلام' for amazement",
+      "Use 'هالحين' for 'now'",
+      "Use 'شرايك' for 'what do you think'",
+      "Use 'طيب' for 'ok'",
+      "Use 'الله يعطيك' for praise"
+    ],
+    examples: [
+      "ايش هاللعب يا سلام",
+      "ما شاء الله تبارك",
+      "يعطيك العافية",
+      "طيب طيب شرايك",
+      "هالحين صار شي",
+      "الله يعطيك العافية",
+      "ما شاء الله عليك",
+      "ايش فيه هالحركة",
+      "يا سلام على اللعب",
+      "الله يعطيك يا بطل"
+    ]
+  },
+
+  // 🇦🇪 Emirati
+  ae: {
+    name: "Emirati Arabic",
+    script: "arabic",
+    features: [
+      "Use 'ايش' or 'وش' for 'what'",
+      "Use 'هذا/هذي' for 'this'",
+      "Use 'ما شاء الله' for praise",
+      "Use 'يعطيك العافية' for thanks",
+      "Use 'يا سلام' for amazement",
+      "Use 'هالحين' for 'now'",
+      "Use 'شرايك' for 'what do you think'",
+      "Use 'طيب' for 'ok'",
+      "Use 'يا هلا' for welcome",
+      "Use 'الله يعطيك' for praise"
+    ],
+    examples: [
+      "ايش هاللعب يا سلام",
+      "ما شاء الله تبارك",
+      "يعطيك العافية",
+      "يا هلا باللعبة",
+      "طيب طيب شرايك",
+      "هالحين صار شي",
+      "الله يعطيك العافية",
+      "ما شاء الله عليك",
+      "ايش فيه هالحركة",
+      "يا سلام على اللعب"
+    ]
+  },
+
+  // 🇶🇦 Qatari
+  qa: {
+    name: "Qatari Arabic",
+    script: "arabic",
+    features: [
+      "Use 'ايش' or 'وش' for 'what'",
+      "Use 'هذا/هذي' for 'this'",
+      "Use 'ما شاء الله' for praise",
+      "Use 'يعطيك العافية' for thanks",
+      "Use 'يا سلام' for amazement",
+      "Use 'هالحين' for 'now'",
+      "Use 'شرايك' for 'what do you think'",
+      "Use 'طيب' for 'ok'",
+      "Use 'الله يعطيك' for praise",
+      "Use 'يا مرحبا' for welcome"
+    ],
+    examples: [
+      "ايش هاللعب يا سلام",
+      "ما شاء الله تبارك",
+      "يعطيك العافية",
+      "يا مرحبا باللعبة",
+      "طيب طيب شرايك",
+      "هالحين صار شي",
+      "الله يعطيك العافية",
+      "ما شاء الله عليك",
+      "ايش فيه هالحركة",
+      "يا سلام على اللعب"
+    ]
+  },
+
+  // 🇴🇲 Omani
+  om: {
+    name: "Omani Arabic",
+    script: "arabic",
+    features: [
+      "Use 'ايش' or 'وش' for 'what'",
+      "Use 'هذا/هذي' for 'this'",
+      "Use 'ما شاء الله' for praise",
+      "Use 'يعطيك العافية' for thanks",
+      "Use 'يا سلام' for amazement",
+      "Use 'هالحين' for 'now'",
+      "Use 'شرايك' for 'what do you think'",
+      "Use 'طيب' for 'ok'",
+      "Use 'الله يعطيك' for praise"
+    ],
+    examples: [
+      "ايش هاللعب يا سلام",
+      "ما شاء الله تبارك",
+      "يعطيك العافية",
+      "طيب طيب شرايك",
+      "هالحين صار شي",
+      "الله يعطيك العافية",
+      "ما شاء الله عليك",
+      "ايش فيه هالحركة",
+      "يا سلام على اللعب",
+      "الله يعطيك يا بطل"
+    ]
+  },
+
+  // 🇵🇸 Palestinian
+  ps: {
+    name: "Palestinian Arabic",
+    script: "arabic",
+    features: [
+      "Use 'ايش' for 'what'",
+      "Use 'هاد/هاي' for 'this'",
+      "Use 'زاكي' for 'smart/nice'",
+      "Use 'يا ساتر' for shock",
+      "Use 'عاش' for hype",
+      "Use 'الله يعطيك' for thanks",
+      "Use 'كيف' for 'how'",
+      "Use 'منيح' for 'good'",
+      "Use 'هاي' for 'this (fem)'",
+      "Use 'يلا' for 'let's go'",
+      "Use 'شو' for 'what'"
+    ],
+    examples: [
+      "ايش هاد يا ساتر",
+      "عاش يا زلمة",
+      "هاي زاكي كتير",
+      "الله يعطيك الصحة",
+      "منيح منيح كيف",
+      "شو صار هون",
+      "يلا يلا نلعب",
+      "هاي لعبة كتير حلوة",
+      "يا ساتر شو هاد",
+      "زاكي زاكي عاش"
+    ]
+  },
+
+  // 🇱🇧 Lebanese
+  lb: {
+    name: "Lebanese Arabic",
+    script: "arabic",
+    features: [
+      "Use 'شو' for 'what'",
+      "Use 'هيدا/هيدي' for 'this'",
+      "Use 'كتير' for 'very'",
+      "Use 'يا ساتر' for shock",
+      "Use 'عاش' for hype",
+      "Use 'يسلمو' for thanks",
+      "Use 'كيف' for 'how'",
+      "Use 'منيح' for 'good'",
+      "Use 'هيدي' for 'this (fem)'",
+      "Use 'يلا' for 'let's go'",
+      "Use 'حلو' for 'nice'"
+    ],
+    examples: [
+      "شو هيدا يا ساتر",
+      "عاش يا زلمة",
+      "هيدي حلوة كتير",
+      "يسلمو على اللعبة",
+      "منيح منيح كيف",
+      "شو صار هون",
+      "يلا يلا نلعب",
+      "هيدي لعبة كتير حلوة",
+      "يا ساتر شو هيدا",
+      "حلو حلو عاش"
+    ]
+  },
+
+  // 🇸🇾 Syrian
+  sy: {
+    name: "Syrian Arabic",
+    script: "arabic",
+    features: [
+      "Use 'شو' for 'what'",
+      "Use 'هاد/هاي' for 'this'",
+      "Use 'كتير' for 'very'",
+      "Use 'يا ساتر' for shock",
+      "Use 'عاش' for hype",
+      "Use 'يسلمو' for thanks",
+      "Use 'كيف' for 'how'",
+      "Use 'منيح' for 'good'",
+      "Use 'هاي' for 'this (fem)'",
+      "Use 'يلا' for 'let's go'",
+      "Use 'حلو' for 'nice'"
+    ],
+    examples: [
+      "شو هاد يا ساتر",
+      "عاش يا زلمة",
+      "هاي حلوة كتير",
+      "يسلمو على اللعبة",
+      "منيح منيح كيف",
+      "شو صار هون",
+      "يلا يلا نلعب",
+      "هاي لعبة كتير حلوة",
+      "يا ساتر شو هاد",
+      "حلو حلو عاش"
+    ]
+  },
+
+  // 🇨🇴 Comorian
+  km: {
+    name: "Comorian Arabic (Shikomori)",
+    script: "arabic",
+    features: [
+      "Use 'nini' or 'shino' for 'what'",
+      "Use 'hiya' for 'this'",
+      "Use 'mzuri' for 'good'",
+      "Use 'karibu' for 'welcome'",
+      "Use 'asante' for 'thanks'",
+      "Use 'sana' for 'very'",
+      "Use 'na' for 'and/with'",
+      "Use 'ni' for 'is'",
+      "Use 'mimi' for 'I'",
+      "Use 'wewe' for 'you'"
+    ],
+    examples: [
+      "nini hiya mzuri",
+      "karibu sana",
+      "asante sana",
+      "hiya mzuri sana",
+      "nini karibu",
+      "wewe mzuri",
+      "mimi na wewe",
+      "hiya sana mzuri",
+      "karibu karibu",
+      "asante asante"
+    ]
+  },
+
+  // 🇩🇯 Djiboutian
+  dj: {
+    name: "Djiboutian Arabic",
+    script: "arabic",
+    features: [
+      "Mix of Arabic and Somali/Afar influences",
+      "Use 'wa' for 'and'",
+      "Use 'ma' for 'what'",
+      "Use 'hadi' for 'this'",
+      "Use 'wanagsan' for 'good'",
+      "Use 'mahadsanid' for 'thanks'",
+      "Use 'sare' for 'up/high'",
+      "Use 'cusub' for 'new'",
+      "Use 'fiican' for 'good/nice'"
+    ],
+    examples: [
+      "ma hadi wanagsan",
+      "mahadsanid sare",
+      "hadi fiican",
+      "wa wanagsan",
+      "ma cusub hadi",
+      "sare sare fiican",
+      "wanagsan wanagsan",
+      "mahadsanid fiican",
+      "hadi cusub sare",
+      "wa fiican hadi"
+    ]
+  },
+
+  // 🇸🇴 Somali (Arabic script context)
+  so: {
+    name: "Somali Arabic Context",
+    script: "arabic",
+    features: [
+      "Use 'ma' for 'what'",
+      "Use 'kan' for 'this'",
+      "Use 'wanagsan' for 'good'",
+      "Use 'mahadsanid' for 'thanks'",
+      "Use 'sare' for 'up/high'",
+      "Use 'cusub' for 'new'",
+      "Use 'fiican' for 'good/nice'",
+      "Use 'wa' for 'and'",
+      "Use 'hadi' for 'this'"
+    ],
+    examples: [
+      "ma kan wanagsan",
+      "mahadsanid sare",
+      "kan fiican",
+      "wa wanagsan",
+      "ma cusub kan",
+      "sare sare fiican",
+      "wanagsan wanagsan",
+      "mahadsanid fiican",
+      "kan cusub sare",
+      "wa fiican kan"
+    ]
+  },
+
+  // 🇹🇩 Chadian
+  td: {
+    name: "Chadian Arabic",
+    script: "arabic",
+    features: [
+      "Use 'shu' for 'what'",
+      "Use 'hada/hadi' for 'this'",
+      "Use 'tamam' for 'ok'",
+      "Use 'zain' for 'good'",
+      "Use 'allah yik' for thanks",
+      "Use 'ya rabbi' for shock",
+      "Use 'kifaya' for 'enough'",
+      "Use 'mashi' for 'ok/walking'",
+      "Use 'shwaya' for 'a little'",
+      "Use 'kullu' for 'all'"
+    ],
+    examples: [
+      "shu hada ya rabbi",
+      "tamam tamam zain",
+      "allah yik zain",
+      "hadi zain shwaya",
+      "ya rabbi shu hada",
+      "kifaya kifaya",
+      "mashi mashi zain",
+      "kullu tamam",
+      "shu hada zain",
+      "allah yik kullu"
+    ]
+  }
+};
+
+// Franco (Latin script) variants
+const FRANCO_PROFILES = {
+  tn: {
+    name: "Tunisian Franco",
+    examples: [
+      "chnouwa hedha ya sater",
+      "bravo 3lik khuya",
+      "hedhi 9awiya barcha",
+      "wallah ya 3dham",
+      "ye3ishik 3al le3ba",
+      "behi behi kifesh",
+      "shbeek khuya hedhi nar",
+      "ne7eb el tare9a hedhi",
+      "chnouwa sar houna ya sater",
+      "barcha barcha 9awiya"
+    ]
+  },
+  dz: {
+    name: "Algerian Franco",
+    examples: [
+      "wach hed ya rabbi",
+      "saha 3lik khuya",
+      "hedhi nar bzaf",
+      "berk allah fik",
+      "wakha wakha kifah",
+      "bzaf bzaf 9awiya",
+      "ne7eb el tare9a hedhi",
+      "wach sar houna ya rabbi",
+      "hedhi le3ba bzaf",
+      "saha khuya raho 9awi"
+    ]
+  },
+  ma: {
+    name: "Moroccan Franco",
+    examples: [
+      "chnou hada ya salam",
+      "allah y3tik essa7a",
+      "hadi zwin bzaf",
+      "wakha wakha kifach",
+      "safi safi fhemt",
+      "bghit nel3eb bhalek",
+      "hadi le3ba 9awiya",
+      "ya salam 3al le3ba",
+      "bzaf bzaf zwina",
+      "chnou kayen hna"
+    ]
+  },
+  eg: {
+    name: "Egyptian Franco",
+    examples: [
+      "eih da ya sater",
+      "3ash ya ged3",
+      "da gamed awy",
+      "ya sater 3al le3ba",
+      "3azma 3azma bged",
+      "7elo awy kda",
+      "rabbena yestor 3alek",
+      "ya ged3 enta magnoun",
+      "da film mesh le3ba",
+      "3ash ya batal"
+    ]
+  },
+  sa: {
+    name: "Saudi Franco",
+    examples: [
+      "eish hal le3b ya salam",
+      "ma sha allah tabarak",
+      "y3tik el 3afya",
+      "ya 7abibi hatha 9awi",
+      "tayeb tayeb shrayek",
+      "hal7in sar she",
+      "allah y3tik el 3afya",
+      "ma sha allah 3alek",
+      "eish feeh hal 7araka",
+      "ya mar7aba bel le3ba"
+    ]
+  },
+  jo: {
+    name: "Jordanian Franco",
+    examples: [
+      "eish had ya sater",
+      "3ash ya zalame",
+      "hay zaki kteer",
+      "allah y3tik essa7a",
+      "mne7 mne7 keef",
+      "sho sar houn",
+      "yalla yalla nel3ab",
+      "hay le3ba kteer 7elwa",
+      "ya sater sho had",
+      "zaki zaki 3ash"
+    ]
+  },
+  ly: {
+    name: "Libyan Franco",
+    examples: [
+      "ash hada ya rabbi",
+      "nari nari 3al le3ba",
+      "berk allah fik",
+      "hadi nar bzaf",
+      "sa7ee7 sa7ee7 kifash",
+      "wallah ya rabbi",
+      "shabab hadi 9awiya",
+      "ya sater ash sar",
+      "hadi le3ba nar",
+      "berk allah 3alek"
+    ]
+  }
+};
+
+// MSA detection patterns
+const MSA_PATTERNS = [
+  /ما\s+هذا/, /ما\s+هذه/, /ما\s+هذا/, /ما\s+هذه/,
+  /أحسنت/, /ممتاز/, /جيد/, /جميل/, /رائع/,
+  /شكرا/, /شكراً/, /مبروك/, /تهانينا/, /فارغ/,
+  /عادي/, /طبيعي/, /حسنا/, /حسنًا/, /نعم/,
+  /لا/, /أجل/, /بلى/, /تفضل/, /أهلا/,
+  /مرحبا/, /مرحباً/, /صباح/, /مساء/, /ليلة/,
+  /كيف\s+حال/, /كيف\s+حالك/, /كيف\s+حالكم/,
+  /ما\s+اسم/, /من\s+أين/, /كم\s+عمر/,
+  /أريد/, /أحب/, /أحبك/, /أحبكم/,
+  /أحب\s+أن/, /أريد\s+أن/, /أستطيع/,
+  /أقدر/, /أستطيع\s+أن/, /أقدر\s+أن/,
+  /يمكن/, /يمكنني/, /يمكن\s+أن/,
+  /يجب/, /يجب\s+أن/, /لابد/, /لابد\s+من/,
+  /من\s+فضلك/, /من\s+فضلكم/, /لو\s+سمحت/,
+  /عفوا/, /عفواً/, /آسف/, /آسفة/,
+  /هذا\s+جيد/, /هذه\s+جيدة/, /هذا\s+رائع/,
+  /أنا\s+سعيد/, /أنا\s+فرح/, /أنا\s+حزين/,
+  /أنا\s+متعب/, /أنا\s+مرتاح/, /أنا\s+مبسوط/,
+  /أنت\s+جميل/, /أنت\s+جميلة/, /أنت\s+رائع/,
+  /هو\s+ذكي/, /هي\s+ذكية/, /هم\s+أذكياء/,
+  /الكتاب/, /القلم/, /المدرسة/, /الجامعة/,
+  /السيارة/, /البيت/, /الغرفة/, /المطبخ/,
+  /الطعام/, /الماء/, /الخبز/, /اللحم/,
+  /الفاكهة/, /الخضار/, /التفاح/, /الموز/,
+  /اليوم/, /الأمس/, /الغد/, /الصباح/,
+  /المساء/, /الليل/, /الفجر/, /الظهر/,
+  /العصر/, /المغرب/, /العشاء/,
+  /الأحد/, /الاثنين/, /الثلاثاء/, /الأربعاء/,
+  /الخميس/, /الجمعة/, /السبت/,
+  /يناير/, /فبراير/, /مارس/, /أبريل/,
+  /مايو/, /يونيو/, /يوليو/, /أغسطس/,
+  /سبتمبر/, /أكتوبر/, /نوفمبر/, /ديسمبر/,
+  /واحد/, /اثنان/, /ثلاثة/, /أربعة/,
+  /خمسة/, /ستة/, /سبعة/, /ثمانية/,
+  /تسعة/, /عشرة/, /مئة/, /ألف/,
+  /مليون/, /مليار/
+];
+
+// Function to get dialect profile
+function getDialectProfile(arabicType, region) {
+  const key = region?.toLowerCase() || 'me';
+
+  // If franco mode
+  if (arabicType === 'franco') {
+    return FRANCO_PROFILES[key] || FRANCO_PROFILES['ma'];
+  }
+
+  // If darija or other arabic types
+  return DIALECT_PROFILES[key] || DIALECT_PROFILES['ma'];
+}
+
+// Function to validate dialect output
+function validateDialect(text, arabicType, region) {
+  if (!text || typeof text !== 'string') {
+    return { valid: false, reason: 'empty text' };
+  }
+
+  const profile = getDialectProfile(arabicType, region);
+
+  // Check for MSA patterns
+  const msaMatches = MSA_PATTERNS.filter(p => p.test(text));
+
+  if (msaMatches.length > 0 && arabicType === 'darija') {
+    return {
+      valid: false,
+      reason: 'MSA detected',
+      matches: msaMatches.map(p => p.source)
+    };
+  }
+
+  // Check script compliance for franco
+  if (arabicType === 'franco') {
+    const arabicScript = /[\u0600-\u06FF]/.test(text);
+    if (arabicScript) {
+      return {
+        valid: false,
+        reason: 'Arabic script found in franco mode'
+      };
+    }
+  }
+
+  // Check script compliance for arabic script modes
+  if (arabicType === 'darija') {
+    // Allow some Latin (for mixed words like "gg", "nice")
+    // But reject if mostly Latin
+    const latinChars = (text.match(/[a-zA-Z]/g) || []).length;
+    const totalChars = text.replace(/\s/g, '').length;
+    if (totalChars > 0 && latinChars / totalChars > 0.5) {
+      return {
+        valid: false,
+        reason: 'Too much Latin script in darija mode'
+      };
+    }
+  }
+
+  return { valid: true };
+}
+
+// Function to build dialect prompt section
+function buildDialectPrompt(arabicType, region) {
+  const profile = getDialectProfile(arabicType, region);
+
+  if (!profile) {
+    return '';
+  }
+
+  const isFranco = arabicType === 'franco';
+  const scriptRule = isFranco
+    ? "CRITICAL: Write ONLY in Latin letters (a-z). NEVER use Arabic script (ا ب ت)."
+    : "CRITICAL: Write ONLY in Arabic script (ا ب ت). NEVER use Latin letters (a-z).";
+
+  const examplesText = profile.examples
+    .slice(0, 8)
+    .map((ex, i) => `${i + 1}. "${ex}"`)
+    .join('\n');
+
+  const featuresText = profile.features
+    .slice(0, 10)
+    .map(f => `- ${f}`)
+    .join('\n');
+
+  return `
+━━━━━━━━━━━━━━━━━━
+DIALECT PROFILE: ${profile.name}
+━━━━━━━━━━━━━━━━━━
+${scriptRule}
+
+You MUST write in ${profile.name} ONLY.
+NEVER use Modern Standard Arabic (فصحى).
+NEVER use formal Arabic words.
+
+KEY FEATURES:
+${featuresText}
+
+EXAMPLES OF CORRECT ${profile.name}:
+${examplesText}
+
+YOUR OUTPUT MUST sound exactly like these examples.
+Use the same vocabulary, grammar, and style.
+`;
+}
+
 // =======================
 // 🔥 GET CHANNEL SETTINGS FROM SUPABASE (FIXED FINAL VERSION)
 async function getChannelSettings(channel) {
@@ -327,9 +1189,7 @@ function safeParseComments(text) {
     if (!Array.isArray(parsed)) return [];
 
     return parsed
-  .map(x =>
-  cleanText(typeof x === "string" ? x : x?.text)
-)
+      .map(x => cleanText(typeof x === "string" ? x : x?.text))
       .filter(t => typeof t === "string" && t.length > 1 && t.length < 80);
 
   } catch (err) {
@@ -398,24 +1258,19 @@ function buildAIScene(channel) {
 
   return {
     channel,
-
     tone: ctx.tone || "hype",
     audienceType: ctx.audienceType || "gaming",
     intensity: ctx.intensity || "medium",
-
-    // 🔥 تحويل intensity إلى mood واضح
     mood:
       ctx.intensity === "high" ? "HYPE"
       : ctx.intensity === "low" ? "calm"
       : "normal",
-
     topic: ctx.audienceType || "general",
-
     chatSamples: (ctx.chatSample || []).slice(0, 8),
-
     timestamp: Date.now()
   };
 }
+
 // =======================
 async function generateComments(channel) {
   console.log("🚨 generateComments CALLED for:", channel);
@@ -424,9 +1279,7 @@ async function generateComments(channel) {
     if (!GROQ_API_KEY) return fallbackComments();
 
     const ctx = buildAIScene(channel);
-
     const chat = (ctx.chatSample || []).slice(0, 8);
-
     const settings = await getChannelSettings(channel);
 
     if (!settings || !settings.language_mode) {
@@ -439,7 +1292,6 @@ async function generateComments(channel) {
     const region = settings.region || "me";
     const persona = settings.persona || "normal";
 
-    // 🔥 NEW CHANNEL BEHAVIOR SETTINGS
     const tone = ctx.tone || "hype";
     const audienceType = ctx.audienceType || "gaming";
     const intensity = ctx.intensity || "medium";
@@ -448,7 +1300,12 @@ async function generateComments(channel) {
       ? chat.map(x => "- " + x).join("\n")
       : "- gg\n- nice\n- lol 😂";
 
-const prompt = `
+    // 🔥 BUILD DIALECT PROMPT
+    const dialectPrompt = (mode === "arabic" || mode === "mix")
+      ? buildDialectPrompt(arabicType, region)
+      : "";
+
+    const prompt = `
 You are a REAL viewer inside a Kick livestream chat.
 
 ━━━━━━━━━━━━━━━━━━
@@ -532,21 +1389,7 @@ IF mode = "french":
 - ZERO Arabic, ZERO English
 
 IF mode = "arabic":
-
-  You MUST obey dialect strictly:
-
-  IF arabic_type = "darija":
-    - Use Moroccan Darija (Arabic script OR natural darija style)
-    - No MSA (no formal Arabic)
-
-  IF arabic_type = "egyptian":
-    - Egyptian slang only
-
-  IF arabic_type = "saudi":
-    - Gulf / Saudi dialect only
-
-  IF region affects slang:
-    - adjust vocabulary accordingly
+  ${dialectPrompt}
 
 IF mode = "mix":
 - Only then mix languages naturally (max 2 languages per comment)
@@ -697,8 +1540,14 @@ Only pure JSON array.
       },
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.9,
+        messages: [
+          {
+            role: "system",
+            content: `You are a livestream chat comment generator. You MUST follow dialect rules EXACTLY. NEVER output Modern Standard Arabic when dialect is requested. Use ONLY the specific dialect vocabulary and grammar shown in the examples.`
+          },
+          { role: "user", content: prompt }
+        ],
+        temperature: 0.4,
         presence_penalty: 0.8,
         frequency_penalty: 1.1,
         max_tokens: 400
@@ -720,17 +1569,35 @@ Only pure JSON array.
       const parsed = safeParseComments(text);
 
       if (parsed.length) {
+        // 🔥 VALIDATE DIALECT
         finalComments = parsed
-  .map(t => cleanText(t))
-  .filter(isGoodComment)
-  .map(t => ({ text: t }));
+          .map(t => cleanText(t))
+          .filter(t => {
+            if (mode !== "arabic" && mode !== "mix") return isGoodComment(t);
+            const validation = validateDialect(t, arabicType, region);
+            if (!validation.valid) {
+              console.log("⚠️ Dialect validation failed:", t, "→", validation.reason);
+              return false;
+            }
+            return isGoodComment(t);
+          })
+          .map(t => ({ text: t }));
       }
     }
 
     if (!finalComments.length) {
-      finalComments = fallbackComments().map(t => ({
-        text: cleanText(t)
-      }));
+      // 🔥 FALLBACK WITH DIALECT
+      const profile = getDialectProfile(arabicType, region);
+      if (profile && profile.examples && profile.examples.length > 0) {
+        const dialectFallbacks = profile.examples
+          .slice(0, 5)
+          .map(ex => ({ text: ex }));
+        finalComments = dialectFallbacks;
+      } else {
+        finalComments = fallbackComments().map(t => ({
+          text: cleanText(t)
+        }));
+      }
     }
 
     console.log("🚀 FINAL COMMENTS:", finalComments);
@@ -779,7 +1646,6 @@ app.get("/get-comment", async (req, res) => {
 
     const pool = commentPool[channel];
 
-    // 🔥 أهم تعديل
     if (pool.queue.length === 0) {
       console.log("⚡ EMPTY → FORCE GENERATE");
 
@@ -791,28 +1657,28 @@ app.get("/get-comment", async (req, res) => {
       refillPool(channel);
     }
 
-let commentObj = pool.queue.shift() || { text: "nice 🔥" };
+    let commentObj = pool.queue.shift() || { text: "nice 🔥" };
 
-let comment =
-  typeof commentObj === "string"
-    ? commentObj
-    : commentObj.text;
+    let comment =
+      typeof commentObj === "string"
+        ? commentObj
+        : commentObj.text;
 
-let tries = 0;
+    let tries = 0;
 
-while (isDuplicate(channel, comment) && tries < 5) {
-  const nextObj =
-    pool.queue.shift() || { text: fallbackComments()[0] };
+    while (isDuplicate(channel, comment) && tries < 5) {
+      const nextObj =
+        pool.queue.shift() || { text: fallbackComments()[0] };
 
-  comment =
-    typeof nextObj === "string"
-      ? nextObj
-      : nextObj.text;
+      comment =
+        typeof nextObj === "string"
+          ? nextObj
+          : nextObj.text;
 
-  tries++;
-}
+      tries++;
+    }
 
-return res.json({ comment });
+    return res.json({ comment });
 
   } catch (err) {
     console.log("❌ comment error:", err.message);
@@ -867,9 +1733,9 @@ async function refreshLive() {
   refreshLiveRunning = true;
 
   if (!cachedChannels.length) {
-  refreshLiveRunning = false;
-  return;
-}
+    refreshLiveRunning = false;
+    return;
+  }
 
   console.log("🔄 Checking live...");
 
@@ -890,41 +1756,32 @@ async function refreshLive() {
       try {
         const res = await fetch(`https://kick.com/api/v2/channels/${channel}`);
 
-        // ✅ handle 404 / invalid channel
         if (!res.ok) {
           isLiveNow = false;
           break;
         }
 
         const data = await res.json();
-console.log("🔍", channel, data?.livestream?.is_live);
+        console.log("🔍", channel, data?.livestream?.is_live);
 
-    // 🔥 HYBRID LIVE CHECK (API + HTML)
-       // 🔥 API result
-let apiLive =
-  data?.livestream &&
-  data.livestream !== null &&
-  data.livestream.is_live === true;
+        let apiLive =
+          data?.livestream &&
+          data.livestream !== null &&
+          data.livestream.is_live === true;
 
-// 🔥 HYBRID CHECK
-if (!apiLive) {
-
-  let htmlCheck = false;
-
-  // 🔥 fallback فقط عند فشل API الحقيقي
-  if (apiLive === false && isLiveNow === false) {
-    htmlCheck = await checkLiveFromHTML(channel);
-  }
-
-  if (htmlCheck === true) {
-    isLiveNow = true;
-  } else {
-    isLiveNow = false;
-  }
-
-} else {
-  isLiveNow = apiLive;
-}
+        if (!apiLive) {
+          let htmlCheck = false;
+          if (apiLive === false && isLiveNow === false) {
+            htmlCheck = await checkLiveFromHTML(channel);
+          }
+          if (htmlCheck === true) {
+            isLiveNow = true;
+          } else {
+            isLiveNow = false;
+          }
+        } else {
+          isLiveNow = apiLive;
+        }
 
         break;
 
@@ -933,7 +1790,6 @@ if (!apiLive) {
 
     const state = stateMemory[channel];
 
-    // ✅ network fail → treat as fail (no skip)
     if (isLiveNow === null) {
       state.fail++;
       state.success = 0;
@@ -967,7 +1823,7 @@ if (!apiLive) {
   }
 
   console.log("📡 Live stable updated");
-refreshLiveRunning = false;
+  refreshLiveRunning = false;
 }
 
 // =======================
@@ -981,13 +1837,11 @@ setInterval(() => {
 
     const s = verificationSessions[channel];
 
-    // ⛔ expired session
     if (now - s.lastHeartbeat > 15 * 60 * 1000) {
       s.expired = true;
       s.verified = false;
     }
 
-    // 🧹 حذف قديم جداً
     if (now - s.startedAt > 60 * 60 * 1000) {
       delete verificationSessions[channel];
     }
@@ -1003,11 +1857,11 @@ app.get("/sync", (req, res) => {
 
   if (verificationMode.active) {
     return res.json({
-  status: "active",
-  channels: cachedChannels,
-  vipChannels: [...vipChannels],
-  verificationActive: verificationMode.active
-});
+      status: "active",
+      channels: cachedChannels,
+      vipChannels: [...vipChannels],
+      verificationActive: verificationMode.active
+    });
   }
 
   return res.json({
@@ -1027,7 +1881,6 @@ app.get("/status", (req, res) => {
 
   const now = Date.now();
 
-  // 🔥 نحدث الكاش كل 3 ثواني فقط
   if (!cachedStatusResponse || now - lastStatusSend > 3000) {
     cachedStatusResponse = { ...liveCache };
     lastStatusSend = now;
@@ -1132,7 +1985,6 @@ app.post("/admin/start-presence-monitoring", (req, res) => {
   for (const ch of channels) {
     const clean = normalize(ch);
 
-    // نجهز session لكل قناة
     verificationSessions[clean] = {
       startedAt: Date.now(),
       lastHeartbeat: Date.now(),
@@ -1162,14 +2014,14 @@ app.post("/admin/send-notice", (req, res) => {
       return res.json({ ok: false });
     }
 
-globalNotice = {
-  active: true,
-  id: Date.now(),
-  version: Date.now(),
-  text: String(text).trim(),
-  type: req.body.type || "normal",
-  createdAt: Date.now()
-};
+    globalNotice = {
+      active: true,
+      id: Date.now(),
+      version: Date.now(),
+      text: String(text).trim(),
+      type: req.body.type || "normal",
+      createdAt: Date.now()
+    };
     console.log("📢 NOTICE SENT:", text);
 
     return res.json({ ok: true });
@@ -1204,9 +2056,9 @@ app.post("/admin/end-notice", (req, res) => {
 // 🔔 GET GLOBAL NOTICE
 app.get("/notice", (req, res) => {
   res.json({
-  ...globalNotice,
-  serverTime: Date.now()
-});
+    ...globalNotice,
+    serverTime: Date.now()
+  });
 });
 // =======================
 // 🧠 START PRESENCE SESSION
@@ -1233,7 +2085,6 @@ app.post("/presence/start", (req, res) => {
 
     const now = getNow();
 
-    // 🔥 حماية من spam restart
     const recentlyStarted =
       p.joinedAt &&
       now - p.joinedAt < 15000;
@@ -1315,9 +2166,6 @@ app.post("/presence/ping", (req, res) => {
 
     const now = getNow();
 
-    // =======================
-    // 🔥 channel mismatch
-
     if (
       channel &&
       p.channel &&
@@ -1332,9 +2180,6 @@ app.post("/presence/ping", (req, res) => {
       );
     }
 
-    // =======================
-    // 🔥 tab mismatch
-
     if (
       tabId &&
       p.tabId &&
@@ -1348,9 +2193,6 @@ app.post("/presence/ping", (req, res) => {
         userId
       );
     }
-
-    // =======================
-    // 🔥 suspicious fast ping
 
     const diff =
       now - (p.lastPing || 0);
@@ -1368,7 +2210,6 @@ app.post("/presence/ping", (req, res) => {
       );
     }
 
-    // =======================
     p.lastPing = now;
 
     p.disconnected = false;
@@ -1377,9 +2218,6 @@ app.post("/presence/ping", (req, res) => {
 
     p.videoOk =
       videoPlaying === true;
-
-    // =======================
-    // 🔥 احتساب الوقت الحقيقي
 
     if (
       videoPlaying === true
@@ -1400,7 +2238,6 @@ app.post("/presence/ping", (req, res) => {
       }
     }
 
-    // =======================
     return res.json({
 
       ok: true,
@@ -1503,7 +2340,6 @@ app.post("/verification/heartbeat", (req, res) => {
 
     session.totalTime = now - session.startedAt;
 
-    // 🟢 mark active
     session.expired = false;
 
     return res.json({
@@ -1606,8 +2442,6 @@ app.post("/attendance/confirm", (req, res) => {
 
     console.log("📥 Attendance confirmed:", userId, channel);
 
-    // هنا تقدر تخزن الحضور أو تعطي نقاط أو تسجل DB
-    // مثال بسيط (مؤقت):
     if (!presenceMemory[userId]) {
       presenceMemory[userId] = {};
     }
