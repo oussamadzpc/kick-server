@@ -152,7 +152,6 @@ td:first-child {
   gap:10px;
 }
 </style>
-<base target="_blank">
 </head>
 
 <body>
@@ -342,13 +341,57 @@ const SUPABASE_KEY = "sb_publishable_uMpZADEZSY51Dv9nTMsiYQ_kHp6JQp0";
 
 const BASE_URL = "https://kick-server-4c5d.onrender.com";
 // ADMIN_KEY entered via prompt - NOT hardcoded
-const ADMIN_KEY = "2107";
+// 🔐 ADMIN AUTH - Password verified via server
+let ADMIN_KEY = "";
+let isAuthenticated = false;
 
 let allData = [];
 let deletedList = [];
 let vipList = [];
 let selectedChannels = new Set();
 let verificationActive = false;
+
+// 🔒 Authentication check on load
+async function authenticateAdmin() {
+  // Check if already authenticated in this session
+  const sessionAuth = sessionStorage.getItem('admin_auth');
+  if (sessionAuth) {
+    ADMIN_KEY = sessionAuth;
+    isAuthenticated = true;
+    return true;
+  }
+
+  // Show password prompt
+  const password = prompt("Enter Admin Password:");
+  if (!password || password.length < 4) {
+    document.body.innerHTML = "<h1 style='text-align:center;margin-top:50px;color:#ef4444;'>⛔ Access Denied</h1>";
+    return false;
+  }
+
+  // Verify with server
+  try {
+    const res = await fetch(BASE_URL + "/admin/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password })
+    });
+
+    const data = await res.json();
+
+    if (data.ok && data.valid) {
+      ADMIN_KEY = password;
+      isAuthenticated = true;
+      sessionStorage.setItem('admin_auth', password); // Remember for this session
+      return true;
+    } else {
+      document.body.innerHTML = "<h1 style='text-align:center;margin-top:50px;color:#ef4444;'>⛔ Invalid Password</h1>";
+      return false;
+    }
+  } catch (err) {
+    document.body.innerHTML = "<h1 style='text-align:center;margin-top:50px;color:#ef4444;'>⛔ Server Error</h1>";
+    return false;
+  }
+}
 
 async function loadRequests() {
   const res = await fetch(SUPABASE_URL, {
@@ -763,7 +806,12 @@ async function endNotice() {
     alert("Error");
   }
 }
-window.onload = loadRequests;
+window.onload = async () => {
+  const auth = await authenticateAdmin();
+  if (auth) {
+    loadRequests();
+  }
+};
 </script>
 <script>
 
