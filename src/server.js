@@ -2479,6 +2479,9 @@ app.post("/admin/verify", (req, res) => {
   return res.status(403).json({ ok: false, valid: false });
 });
 
+// Serve static files (index.html)
+app.use(express.static('public'));
+
 app.listen(PORT, () => {
   console.log("🚀 Server running on port", PORT);
 });
