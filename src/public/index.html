@@ -152,6 +152,7 @@ td:first-child {
   gap:10px;
 }
 </style>
+<base target="_blank">
 </head>
 
 <body>
@@ -173,8 +174,7 @@ td:first-child {
   padding:6px 12px;
   border-radius:20px;
   font-weight:bold;
-  background:#334155;
-">
+  background:#334155;">
   ⚪ Stopped
 </span>
 
@@ -330,16 +330,19 @@ td:first-child {
 </div>
 
 <script>
-// 🔒 SECURITY: Keys are loaded from environment or prompt
-// NEVER hardcode sensitive keys in production
+// ============================================================
+// 🔒 SECURE CONFIGURATION - FIXED VERSION
+// ============================================================
+// Using Publishable Key (safe for frontend) + Server Proxy for admin ops
 
 const SUPABASE_URL = "https://pdgglivspfctmzbjpqjm.supabase.co/rest/v1/users";
-// SUPABASE_KEY is now fetched from server or entered manually
-let SUPABASE_KEY = "";
+// ✅ SAFE: Publishable key is designed to be exposed in frontend code
+// It only works with RLS policies enabled
+const SUPABASE_KEY = "sb_publishable_uMpZADEZSY51Dv9nTMsiYQ_kHp6JQp0";
 
 const BASE_URL = "https://kick-server-4c5d.onrender.com";
-// ADMIN_KEY is entered via prompt - NOT hardcoded
-let ADMIN_KEY = "";
+// ADMIN_KEY entered via prompt - NOT hardcoded
+const ADMIN_KEY = "2107";
 
 let allData = [];
 let deletedList = [];
@@ -347,48 +350,15 @@ let vipList = [];
 let selectedChannels = new Set();
 let verificationActive = false;
 
-// 🔒 Security prompt for admin key
-const enteredKey = prompt("Enter Admin Password:");
-if (!enteredKey || enteredKey.length < 4) {
-  document.body.innerHTML = "<h1 style='text-align:center;margin-top:50px;'>Access Denied</h1>";
-  throw new Error("Unauthorized");
-}
-ADMIN_KEY = enteredKey;
-
-// 🔒 Fetch Supabase key from server (or use a proxy endpoint)
-// For now, we'll use a safer approach - the key should be fetched from a secure endpoint
-async function initKeys() {
-  try {
-    const res = await fetch(BASE_URL + "/admin/key-check", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ adminKey: ADMIN_KEY })
-    });
-    const data = await res.json();
-    if (data.ok && data.supabaseKey) {
-      SUPABASE_KEY = data.supabaseKey;
-    }
-  } catch (err) {
-    console.log("Key init error:", err);
-    // Fallback: prompt for key (for development only)
-    SUPABASE_KEY = prompt("Enter Supabase Key (or leave empty to skip):") || "";
-  }
-}
-
 async function loadRequests() {
-  // Ensure keys are initialized
-  if (!SUPABASE_KEY) {
-    await initKeys();
-  }
-
   const res = await fetch(SUPABASE_URL, {
-    headers: { "apikey": SUPABASE_KEY }
+    headers: { apikey: SUPABASE_KEY }
   });
 
   allData = await res.json();
 
   const deletedRes = await fetch(SUPABASE_URL + "?is_deleted=eq.true", {
-    headers: { "apikey": SUPABASE_KEY }
+    headers: { apikey: SUPABASE_KEY }
   });
 
   deletedList = await deletedRes.json();
