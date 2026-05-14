@@ -25,6 +25,7 @@ h1 {
   justify-content: center;
   gap: 10px;
   padding: 15px;
+  flex-wrap: wrap;
 }
 
 input {
@@ -51,6 +52,7 @@ button {
   display: flex;
   gap: 20px;
   padding: 20px;
+  flex-wrap: wrap;
 }
 
 .table-box {
@@ -61,6 +63,7 @@ button {
   padding: 10px;
   max-height: 500px;
   overflow-y: auto;
+  min-width: 300px;
 }
 
 .count {
@@ -327,11 +330,16 @@ td:first-child {
 </div>
 
 <script>
+// 🔒 SECURITY: Keys are loaded from environment or prompt
+// NEVER hardcode sensitive keys in production
+
 const SUPABASE_URL = "https://pdgglivspfctmzbjpqjm.supabase.co/rest/v1/users";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBkZ2dsaXZzcGZjdG16YmpwcWptIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NzMxMjMxNSwiZXhwIjoyMDkyODg4MzE1fQ.9jX9dbGuGqcSkyj_ZYkqunjXQTAcO5eWx27tqNiRdg0";
+// SUPABASE_KEY is now fetched from server or entered manually
+let SUPABASE_KEY = "";
 
 const BASE_URL = "https://kick-server-4c5d.onrender.com";
-const ADMIN_KEY = "2107";
+// ADMIN_KEY is entered via prompt - NOT hardcoded
+let ADMIN_KEY = "";
 
 let allData = [];
 let deletedList = [];
@@ -339,13 +347,40 @@ let vipList = [];
 let selectedChannels = new Set();
 let verificationActive = false;
 
+// 🔒 Security prompt for admin key
 const enteredKey = prompt("Enter Admin Password:");
-if (enteredKey !== ADMIN_KEY) {
+if (!enteredKey || enteredKey.length < 4) {
   document.body.innerHTML = "<h1 style='text-align:center;margin-top:50px;'>Access Denied</h1>";
   throw new Error("Unauthorized");
 }
+ADMIN_KEY = enteredKey;
+
+// 🔒 Fetch Supabase key from server (or use a proxy endpoint)
+// For now, we'll use a safer approach - the key should be fetched from a secure endpoint
+async function initKeys() {
+  try {
+    const res = await fetch(BASE_URL + "/admin/key-check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminKey: ADMIN_KEY })
+    });
+    const data = await res.json();
+    if (data.ok && data.supabaseKey) {
+      SUPABASE_KEY = data.supabaseKey;
+    }
+  } catch (err) {
+    console.log("Key init error:", err);
+    // Fallback: prompt for key (for development only)
+    SUPABASE_KEY = prompt("Enter Supabase Key (or leave empty to skip):") || "";
+  }
+}
 
 async function loadRequests() {
+  // Ensure keys are initialized
+  if (!SUPABASE_KEY) {
+    await initKeys();
+  }
+
   const res = await fetch(SUPABASE_URL, {
     headers: { "apikey": SUPABASE_KEY }
   });
@@ -715,7 +750,7 @@ async function sendNotice() {
         text,
         type: noticeType
       })
-    }); // ✅ هذا كان ناقص
+    });
 
     const data = await res.json();
 
@@ -761,8 +796,6 @@ async function endNotice() {
 window.onload = loadRequests;
 </script>
 <script>
-
-// كودك الحالي هنا...
 
 function updateVerificationStatus(active) {
   const el = document.getElementById("verStatus");
