@@ -11,7 +11,10 @@ const PORT = process.env.PORT || 3000;
 const SUPABASE_URL = "https://pdgglivspfctmzbjpqjm.supabase.co";
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 console.log("🔑 SUPABASE KEY:", SUPABASE_KEY ? "OK" : "MISSING");
-const ADMIN_KEY = process.env.ADMIN_KEY || "2107";
+const ADMIN_KEY = process.env.ADMIN_KEY;
+if (!ADMIN_KEY) {
+  console.log("⚠️ Warning: ADMIN_KEY not set in environment variables");
+}
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
 // =======================
@@ -2458,6 +2461,24 @@ app.post("/attendance/confirm", (req, res) => {
   }
 });
 // =======================
+
+// =======================
+// 🔐 ADMIN AUTH VERIFICATION
+// =======================
+app.post("/admin/verify", (req, res) => {
+  const { password } = req.body;
+
+  if (!ADMIN_KEY) {
+    return res.status(500).json({ ok: false, error: "ADMIN_KEY not configured" });
+  }
+
+  if (password === ADMIN_KEY) {
+    return res.json({ ok: true, valid: true });
+  }
+
+  return res.status(403).json({ ok: false, valid: false });
+});
+
 app.listen(PORT, () => {
   console.log("🚀 Server running on port", PORT);
 });
