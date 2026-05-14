@@ -1202,8 +1202,33 @@ function safeParseComments(text) {
 }
 
 // =======================
+// 🔥 KICK EMOTES DATABASE
+const KICK_EMOTES = [
+  "pepe", "monkas", "EZ", "OMEGALUL", "LUL", "KEKW",
+  "Pog", "PogChamp", "5Head", "PepeHands", "Sadge",
+  "monkaS", "monkaW", "AYAYA", "WideHard", "Pepega",
+  "Clap", "peepoClap", "peepoHappy", "peepoSad",
+  "COPIUM", "HUH", "Aware", "OhNo", "O_o",
+  "pepeJAM", "pepeD", "pepeLaugh", "monkaEyes",
+  "EZ", "Clueless", "Sure", "YES", "NO",
+  "peepoLeave", "peepoArrive", "BOOBA", "Bedge"
+];
+
+function getRandomEmote() {
+  return KICK_EMOTES[Math.floor(Math.random() * KICK_EMOTES.length)];
+}
+
+function getEmoteComment() {
+  const count = Math.random() < 0.3 ? 3 : 2; // 30% chance for 3 emotes
+  const emotes = [];
+  for (let i = 0; i < count; i++) {
+    emotes.push(getRandomEmote());
+  }
+  return emotes.join(" ");
+}
+
 function fallbackComments(channel = "") {
-  return [
+  const comments = [
     "😂😂",
     "gg",
     "clean 🔥",
@@ -1213,8 +1238,25 @@ function fallbackComments(channel = "") {
     "توب 🔥",
     "يعطيك الصحة 🔥",
     "هايل 😂",
-    "واو 🔥"
+    "واو 🔥",
+    "👀👀",
+    "🔥🔥🔥",
+    "😂😂😂",
+    "👍👍",
+    "🎯🎯",
+    "💯💯",
+    "🚀🚀",
+    "👑👑",
+    "⚡⚡",
+    "🎉🎉"
   ];
+
+  // Add emote-only comments (30% chance)
+  if (Math.random() < 0.3) {
+    comments.push(getEmoteComment());
+  }
+
+  return comments;
 }
 function isGoodComment(text) {
   if (!text) return false;
@@ -1355,6 +1397,10 @@ STRICT CORE RULES
 - Follow ONLY the selected language_mode.
 - NEVER mix languages unless mode = mix.
 - Write SHORT comments ONLY (2 to 8 words max).
+- You MAY use Unicode emojis (🔥 😂 👀 🎯 💯) naturally in comments.
+- You MAY use Kick emotes (pepe, monkas, EZ, OMEGALUL, Pog, KEKW, Sadge) in comments.
+- Sometimes send ONLY emotes (2-3 emotes) as a reaction.
+- Sometimes mix text + emotes (e.g., "nice play Pog", "lol 😂 EZ").
 - Every comment must feel like a REAL LIVE CHAT MESSAGE.
 - No generic filler like "thanks", "hello", "how are you".
 - No random disconnected ideas.
