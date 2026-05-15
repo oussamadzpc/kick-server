@@ -4,55 +4,22 @@ import cors from "cors";
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: "1mb" }));
-
-// =======================
-// 🔥 RATE LIMITING
-// =======================
-const rateLimits = new Map();
-const RATE_LIMIT_WINDOW = 60000;
-const RATE_LIMIT_MAX = 30;
-
-function checkRateLimit(ip) {
-  const now = Date.now();
-  const record = rateLimits.get(ip);
-  if (!record || now - record.resetTime > RATE_LIMIT_WINDOW) {
-    rateLimits.set(ip, { count: 1, resetTime: now });
-    return true;
-  }
-  if (record.count >= RATE_LIMIT_MAX) return false;
-  record.count++;
-  return true;
-}
-
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, record] of rateLimits) {
-    if (now - record.resetTime > RATE_LIMIT_WINDOW * 2) rateLimits.delete(ip);
-  }
-}, 300000);
-
-app.use((req, res, next) => {
-  const ip = req.ip || req.connection.remoteAddress;
-  if (!checkRateLimit(ip)) return res.status(429).json({ error: "Rate limit exceeded" });
-  next();
-});
+app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
 const SUPABASE_URL = "https://pdgglivspfctmzbjpqjm.supabase.co";
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
+console.log("🔑 SUPABASE KEY:", SUPABASE_KEY ? "OK" : "MISSING");
 const ADMIN_KEY = process.env.ADMIN_KEY;
+if (!ADMIN_KEY) {
+  console.log("⚠️ Warning: ADMIN_KEY not set in environment variables");
+}
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
 // =======================
 if (!SUPABASE_KEY) {
-  console.error("❌ FATAL: SUPABASE_KEY required");
-  process.exit(1);
-}
-if (!ADMIN_KEY) {
-  console.error("❌ FATAL: ADMIN_KEY required");
-  process.exit(1);
+  console.log("❌ Missing SUPABASE_KEY");
 }
 
 // =======================
@@ -1190,13 +1157,21 @@ async function getChannelSettings(channel) {
 // 🔥 HTML LIVE CHECK (ULTRA FIX)
 async function checkLiveFromHTML(channel) {
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    const res = await fetch(`https://kick.com/${channel}`, { signal: controller.signal });
-    clearTimeout(timeout);
+    const res = await fetch(`https://kick.com/${channel}`);
     const html = await res.text();
-    return html.includes('"isLive":true') || html.includes('"is_live":true');
-  } catch { return null; }
+
+    if (
+      html.includes('"isLive":true') ||
+      html.includes('"is_live":true')
+    ) {
+      return true;
+    }
+
+    return false;
+
+  } catch (err) {
+    return null;
+  }
 }
 
 // =======================
@@ -1926,19 +1901,6 @@ setInterval(() => {
 refreshChannels();
 refreshLive();
 
-// 🔥 Memory cleanup every 5 minutes
-setInterval(() => {
-  for (const channel in commentPool) {
-    if (!cachedChannels.includes(channel)) delete commentPool[channel];
-  }
-  for (const channel in commentHistory) {
-    if (!cachedChannels.includes(channel)) delete commentHistory[channel];
-  }
-  for (const channel in stateMemory) {
-    if (!cachedChannels.includes(channel)) delete stateMemory[channel];
-  }
-}, 300000);
-
 // =======================
 app.get("/sync", (req, res) => {
 
@@ -2566,43 +2528,8 @@ app.post("/admin/verify", (req, res) => {
 // Serve static files (index.html)
 app.use(express.static('public'));
 
-app.get("/check-user", async (req, res) => {
-  try {
-    const channel = req.query.channel;
-    if (!channel) return res.status(400).json({ error: "Missing channel" });
-    const result = await fetch(`${SUPABASE_URL}/rest/v1/users?channel=eq.${normalize(channel)}`, { headers: getHeaders() });
-    const data = await result.json();
-    if (!data?.length) return res.json(null);
-    const user = data[0];
-    res.json({ channel: user.channel, approved: user.approved, is_deleted: user.is_deleted, password: user.password });
-  } catch { res.status(500).json({ error: "Server error" }); }
-});
-
-app.post("/register", async (req, res) => {
-  try {
-    const { channel, password, preferred_style, preferred_arabic_type, preferred_country, preferred_persona } = req.body;
-    if (!channel || !password) return res.status(400).json({ ok: false, error: "Missing fields" });
-    const result = await fetch(`${SUPABASE_URL}/rest/v1/users`, {
-      method: "POST",
-      headers: getHeaders(),
-      body: JSON.stringify({
-        channel: normalize(channel), password, approved: false, is_deleted: false,
-        preferred_style, preferred_arabic_type, preferred_country, preferred_persona,
-        created_at: new Date().toISOString()
-      })
-    });
-    if (!result.ok) {
-      const error = await result.json();
-      if (error?.message?.includes("duplicate")) return res.status(409).json({ ok: false, error: "Channel already registered" });
-      return res.status(500).json({ ok: false });
-    }
-    res.json({ ok: true });
-  } catch { res.status(500).json({ ok: false }); }
-});
-
 app.listen(PORT, () => {
   console.log("🚀 Server running on port", PORT);
-  console.log("📊 Features: Rate limiting | Memory cleanup | Secure admin | Optimized intervals");
 });
 
 // =======================
