@@ -4,54 +4,91 @@ import cors from "cors";
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
+
+// =======================
+// 🔥 RATE LIMITING (FIXED)
+// =======================
+const rateLimits = new Map();
+const RATE_LIMIT_WINDOW = 60000;
+const RATE_LIMIT_MAX = 30;
+// [FIX #40] حد أقصى لحجم Map
+const MAX_RATE_LIMIT_ENTRIES = 10000;
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const record = rateLimits.get(ip);
+  if (!record || now - record.resetTime > RATE_LIMIT_WINDOW) {
+    rateLimits.set(ip, { count: 1, resetTime: now });
+    return true;
+  }
+  if (record.count >= RATE_LIMIT_MAX) return false;
+  record.count++;
+  return true;
+}
+
+// [FIX #40] cleanup محسّن
+setInterval(() => {
+  const now = Date.now();
+  let cleaned = 0;
+  for (const [ip, record] of rateLimits) {
+    if (now - record.resetTime > RATE_LIMIT_WINDOW * 2) {
+      rateLimits.delete(ip);
+      cleaned++;
+    }
+  }
+  // [FIX #40] إذا تجاوز الحد، نحذف الأقدم
+  if (rateLimits.size > MAX_RATE_LIMIT_ENTRIES) {
+    const sorted = [...rateLimits.entries()].sort((a, b) => a[1].resetTime - b[1].resetTime);
+    const toDelete = sorted.slice(0, sorted.length - MAX_RATE_LIMIT_ENTRIES);
+    toDelete.forEach(([ip]) => rateLimits.delete(ip));
+  }
+}, 300000);
+
+app.use((req, res, next) => {
+  const ip = req.ip || req.connection.remoteAddress;
+  if (!checkRateLimit(ip)) return res.status(429).json({ error: "Rate limit exceeded" });
+  next();
+});
 
 const PORT = process.env.PORT || 3000;
 
 const SUPABASE_URL = "https://pdgglivspfctmzbjpqjm.supabase.co";
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
-console.log("🔑 SUPABASE KEY:", SUPABASE_KEY ? "OK" : "MISSING");
 const ADMIN_KEY = process.env.ADMIN_KEY;
-if (!ADMIN_KEY) {
-  console.log("⚠️ Warning: ADMIN_KEY not set in environment variables");
-}
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
-// =======================
 if (!SUPABASE_KEY) {
-  console.log("❌ Missing SUPABASE_KEY");
+  console.error("❌ FATAL: SUPABASE_KEY required");
+  process.exit(1);
+}
+if (!ADMIN_KEY) {
+  console.error("❌ FATAL: ADMIN_KEY required");
+  process.exit(1);
 }
 
-// =======================
 let vipChannels = new Set();
 let verificationMode = {
   active: false,
   channels: []
 };
-// =======================
-// 🔥 VERIFICATION PRESENCE SYSTEM
 
-const VERIFICATION_TIMEOUT = 1000 * 60 * 5; // 5 minutes
-const HEARTBEAT_LIMIT = 1000 * 25; // 25 sec
-// =======================
+const VERIFICATION_TIMEOUT = 1000 * 60 * 5;
+const HEARTBEAT_LIMIT = 1000 * 25;
+
 let cachedChannels = [];
 let liveCache = {};
 let refreshLiveRunning = false;
 
-// 🔥 NEW STATE MEMORY
 let stateMemory = {};
 
 let commentPool = {};
 let channelContext = {};
 let aiSceneMemory = {};
-// 🔥 COMMENT MEMORY (FIX)
 let commentHistory = {};
-// =======================
-// 🧠 PRESENCE SYSTEM
 
 let presenceMemory = {};
 
-// =======================
 function ensurePresence(userId) {
   if (!presenceMemory[userId]) {
     presenceMemory[userId] = {
@@ -72,16 +109,14 @@ function ensurePresence(userId) {
   return presenceMemory[userId];
 }
 
-// =======================
 function getNow() {
   return Date.now();
 }
 
-// =======================
-// 🧠 CLEAN DEAD USERS
-
+// [FIX #40] cleanup presenceMemory
 setInterval(() => {
   const now = getNow();
+  let cleaned = 0;
   for (const userId in presenceMemory) {
     const p = presenceMemory[userId];
     if (p.lastPing && now - p.lastPing > 120000) {
@@ -90,17 +125,18 @@ setInterval(() => {
         p.totalWatchMs += now - p.lastWatchStart;
         p.lastWatchStart = 0;
       }
+      // [FIX #40] حذف المستخدمين المنقطعين بعد 10 دقائق
+      if (now - p.lastPing > 600000) {
+        delete presenceMemory[userId];
+        cleaned++;
+      }
     }
   }
+  if (cleaned > 0) console.log("🧹 Cleaned", cleaned, "stale presences");
 }, 30000);
-
-// =======================
-// ✅ ATTENDANCE MEMORY
 
 let attendanceMemory = {};
 
-// =======================
-// 🔔 GLOBAL ADMIN NOTICE
 let globalNotice = {
   active: false,
   id: null,
@@ -108,8 +144,6 @@ let globalNotice = {
   createdAt: null,
   version: 0
 };
-// =======================
-// ✅ ATTENDANCE SESSION
 
 let attendanceSession = {
   active: false,
@@ -141,11 +175,9 @@ const POOL_SIZE = 30;
 const REFILL_THRESHOLD = 10;
 const AI_COOLDOWN = 10000;
 
-// 🔥 NEW THRESHOLDS
 const LIVE_CONFIRM = 2;
 const OFFLINE_CONFIRM = 5;
 
-// =======================
 function normalize(str) {
   return String(str)
     .trim()
@@ -155,11 +187,9 @@ function normalize(str) {
 }
 
 // =======================
-// 🔥 DIALECT SYSTEM (NEW - FIXED)
+// 🔥 DIALECT SYSTEM
 // =======================
-
 const DIALECT_PROFILES = {
-  // 🇹🇳 Tunisian Darija
   tn: {
     name: "Tunisian Darija",
     script: "arabic",
@@ -192,8 +222,6 @@ const DIALECT_PROFILES = {
       "برشا برشا قوية"
     ]
   },
-
-  // 🇩🇿 Algerian Darija
   dz: {
     name: "Algerian Darija",
     script: "arabic",
@@ -224,8 +252,6 @@ const DIALECT_PROFILES = {
       "صحا خويا راه قوي"
     ]
   },
-
-  // 🇲🇦 Moroccan Darija
   ma: {
     name: "Moroccan Darija",
     script: "arabic",
@@ -256,8 +282,6 @@ const DIALECT_PROFILES = {
       "شنو كاين هنا"
     ]
   },
-
-  // 🇪🇬 Egyptian
   eg: {
     name: "Egyptian Arabic",
     script: "arabic",
@@ -288,8 +312,6 @@ const DIALECT_PROFILES = {
       "عاش يا بطل"
     ]
   },
-
-  // 🇸🇦 Saudi / Gulf
   sa: {
     name: "Saudi/Gulf Arabic",
     script: "arabic",
@@ -320,8 +342,6 @@ const DIALECT_PROFILES = {
       "يا مرحبا باللعبة"
     ]
   },
-
-  // 🇯🇴 Jordanian
   jo: {
     name: "Jordanian Arabic",
     script: "arabic",
@@ -352,8 +372,6 @@ const DIALECT_PROFILES = {
       "زاكي زاكي عاش"
     ]
   },
-
-  // 🇱🇾 Libyan
   ly: {
     name: "Libyan Arabic",
     script: "arabic",
@@ -384,8 +402,6 @@ const DIALECT_PROFILES = {
       "برك الله عليك"
     ]
   },
-
-  // 🇲🇷 Mauritanian / Hassaniya
   mr: {
     name: "Hassaniya / Mauritanian",
     script: "arabic",
@@ -414,8 +430,6 @@ const DIALECT_PROFILES = {
       "بارك الله عليك"
     ]
   },
-
-  // 🇧🇭 Bahrain / GCC
   bh: {
     name: "Bahraini / GCC Arabic",
     script: "arabic",
@@ -444,8 +458,6 @@ const DIALECT_PROFILES = {
       "يا سلام على اللعب"
     ]
   },
-
-  // 🇸🇩 Sudanese
   sd: {
     name: "Sudanese Arabic",
     script: "arabic",
@@ -474,8 +486,6 @@ const DIALECT_PROFILES = {
       "الله يديك يا بطل"
     ]
   },
-
-  // 🇾🇪 Yemeni
   ye: {
     name: "Yemeni Arabic",
     script: "arabic",
@@ -504,8 +514,6 @@ const DIALECT_PROFILES = {
       "الله يعطيك يا بطل"
     ]
   },
-
-  // 🇮🇶 Iraqi
   iq: {
     name: "Iraqi Arabic",
     script: "arabic",
@@ -535,8 +543,6 @@ const DIALECT_PROFILES = {
       "والله جامد"
     ]
   },
-
-  // 🇰🇼 Kuwaiti
   kw: {
     name: "Kuwaiti Arabic",
     script: "arabic",
@@ -564,8 +570,6 @@ const DIALECT_PROFILES = {
       "الله يعطيك يا بطل"
     ]
   },
-
-  // 🇦🇪 Emirati
   ae: {
     name: "Emirati Arabic",
     script: "arabic",
@@ -594,8 +598,6 @@ const DIALECT_PROFILES = {
       "يا سلام على اللعب"
     ]
   },
-
-  // 🇶🇦 Qatari
   qa: {
     name: "Qatari Arabic",
     script: "arabic",
@@ -624,8 +626,6 @@ const DIALECT_PROFILES = {
       "يا سلام على اللعب"
     ]
   },
-
-  // 🇴🇲 Omani
   om: {
     name: "Omani Arabic",
     script: "arabic",
@@ -653,8 +653,6 @@ const DIALECT_PROFILES = {
       "الله يعطيك يا بطل"
     ]
   },
-
-  // 🇵🇸 Palestinian
   ps: {
     name: "Palestinian Arabic",
     script: "arabic",
@@ -684,8 +682,6 @@ const DIALECT_PROFILES = {
       "زاكي زاكي عاش"
     ]
   },
-
-  // 🇱🇧 Lebanese
   lb: {
     name: "Lebanese Arabic",
     script: "arabic",
@@ -715,8 +711,6 @@ const DIALECT_PROFILES = {
       "حلو حلو عاش"
     ]
   },
-
-  // 🇸🇾 Syrian
   sy: {
     name: "Syrian Arabic",
     script: "arabic",
@@ -746,8 +740,6 @@ const DIALECT_PROFILES = {
       "حلو حلو عاش"
     ]
   },
-
-  // 🇨🇴 Comorian
   km: {
     name: "Comorian Arabic (Shikomori)",
     script: "arabic",
@@ -776,8 +768,6 @@ const DIALECT_PROFILES = {
       "asante asante"
     ]
   },
-
-  // 🇩🇯 Djiboutian
   dj: {
     name: "Djiboutian Arabic",
     script: "arabic",
@@ -805,8 +795,6 @@ const DIALECT_PROFILES = {
       "wa fiican hadi"
     ]
   },
-
-  // 🇸🇴 Somali (Arabic script context)
   so: {
     name: "Somali Arabic Context",
     script: "arabic",
@@ -834,8 +822,6 @@ const DIALECT_PROFILES = {
       "wa fiican kan"
     ]
   },
-
-  // 🇹🇩 Chadian
   td: {
     name: "Chadian Arabic",
     script: "arabic",
@@ -866,7 +852,6 @@ const DIALECT_PROFILES = {
   }
 };
 
-// Franco (Latin script) variants
 const FRANCO_PROFILES = {
   tn: {
     name: "Tunisian Franco",
@@ -975,7 +960,6 @@ const FRANCO_PROFILES = {
   }
 };
 
-// MSA detection patterns
 const MSA_PATTERNS = [
   /ما\s+هذا/, /ما\s+هذه/, /ما\s+هذا/, /ما\s+هذه/,
   /أحسنت/, /ممتاز/, /جيد/, /جميل/, /رائع/,
@@ -1015,28 +999,20 @@ const MSA_PATTERNS = [
   /مليون/, /مليار/
 ];
 
-// Function to get dialect profile
 function getDialectProfile(arabicType, region) {
   const key = region?.toLowerCase() || 'me';
-
-  // If franco mode
   if (arabicType === 'franco') {
     return FRANCO_PROFILES[key] || FRANCO_PROFILES['ma'];
   }
-
-  // If darija or other arabic types
   return DIALECT_PROFILES[key] || DIALECT_PROFILES['ma'];
 }
 
-// Function to validate dialect output
 function validateDialect(text, arabicType, region) {
   if (!text || typeof text !== 'string') {
     return { valid: false, reason: 'empty text' };
   }
 
   const profile = getDialectProfile(arabicType, region);
-
-  // Check for MSA patterns
   const msaMatches = MSA_PATTERNS.filter(p => p.test(text));
 
   if (msaMatches.length > 0 && arabicType === 'darija') {
@@ -1047,7 +1023,6 @@ function validateDialect(text, arabicType, region) {
     };
   }
 
-  // Check script compliance for franco
   if (arabicType === 'franco') {
     const arabicScript = /[\u0600-\u06FF]/.test(text);
     if (arabicScript) {
@@ -1058,10 +1033,7 @@ function validateDialect(text, arabicType, region) {
     }
   }
 
-  // Check script compliance for arabic script modes
   if (arabicType === 'darija') {
-    // Allow some Latin (for mixed words like "gg", "nice")
-    // But reject if mostly Latin
     const latinChars = (text.match(/[a-zA-Z]/g) || []).length;
     const totalChars = text.replace(/\s/g, '').length;
     if (totalChars > 0 && latinChars / totalChars > 0.5) {
@@ -1075,7 +1047,6 @@ function validateDialect(text, arabicType, region) {
   return { valid: true };
 }
 
-// Function to build dialect prompt section
 function buildDialectPrompt(arabicType, region) {
   const profile = getDialectProfile(arabicType, region);
 
@@ -1119,8 +1090,6 @@ Use the same vocabulary, grammar, and style.
 `;
 }
 
-// =======================
-// 🔥 GET CHANNEL SETTINGS FROM SUPABASE (FIXED FINAL VERSION)
 async function getChannelSettings(channel) {
   try {
     const clean = normalize(channel);
@@ -1153,37 +1122,24 @@ async function getChannelSettings(channel) {
     };
   }
 }
-// =======================
-// 🔥 HTML LIVE CHECK (ULTRA FIX)
+
 async function checkLiveFromHTML(channel) {
   try {
-    const res = await fetch(`https://kick.com/${channel}`);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(`https://kick.com/${channel}`, { signal: controller.signal });
+    clearTimeout(timeout);
     const html = await res.text();
-
-    if (
-      html.includes('"isLive":true') ||
-      html.includes('"is_live":true')
-    ) {
-      return true;
-    }
-
-    return false;
-
-  } catch (err) {
-    return null;
-  }
+    return html.includes('"isLive":true') || html.includes('"is_live":true');
+  } catch { return null; }
 }
-
-// =======================
 
 function cleanText(text) {
   return String(text || "")
-    .replace(/�/g, "")
+    .replace(//g, "")
     .replace(/\s+/g, " ")
     .trim();
 }
-
-// =======================
 
 function safeParseComments(text) {
   try {
@@ -1201,8 +1157,6 @@ function safeParseComments(text) {
   }
 }
 
-// =======================
-// 🔥 KICK EMOTES DATABASE
 const KICK_EMOTES = [
   "pepe", "monkas", "EZ", "OMEGALUL", "LUL", "KEKW",
   "Pog", "PogChamp", "5Head", "PepeHands", "Sadge",
@@ -1219,7 +1173,7 @@ function getRandomEmote() {
 }
 
 function getEmoteComment() {
-  const count = Math.random() < 0.3 ? 3 : 2; // 30% chance for 3 emotes
+  const count = Math.random() < 0.3 ? 3 : 2;
   const emotes = [];
   for (let i = 0; i < count; i++) {
     emotes.push(getRandomEmote());
@@ -1251,22 +1205,20 @@ function fallbackComments(channel = "") {
     "🎉🎉"
   ];
 
-  // Add emote-only comments (30% chance)
   if (Math.random() < 0.3) {
     comments.push(getEmoteComment());
   }
 
   return comments;
 }
+
 function isGoodComment(text) {
   if (!text) return false;
 
   const t = text.toLowerCase().trim();
 
-  // ❌ reject too short / too long
   if (t.length < 2 || t.length > 80) return false;
 
-  // ❌ generic spam words
   const badWords = [
     "nice",
     "gg",
@@ -1277,19 +1229,15 @@ function isGoodComment(text) {
     "🔥"
   ];
 
-  // إذا تعليق فقط رموز أو كلمة عامة
   if (badWords.includes(t)) return false;
 
-  // ❌ repeated emojis only
   if (/^[\p{Emoji}\s]+$/u.test(t)) return false;
 
-  // ❌ no meaning sentences
   if (!/[a-zA-Z\u0600-\u06FF]/.test(t)) return false;
 
   return true;
 }
-// =======================
-// 🔥 CHANNEL PERSONALITY DEFAULT (optional fallback system)
+
 function getChannelProfile(channel) {
   return channelContext[channel] || {
     tone: "hype",
@@ -1298,6 +1246,7 @@ function getChannelProfile(channel) {
     chatSample: []
   };
 }
+
 function buildAIScene(channel) {
   const ctx = channelContext[channel] || {};
 
@@ -1316,41 +1265,52 @@ function buildAIScene(channel) {
   };
 }
 
-// =======================
+// [FIX #34] حد أقصى للطلبات المتزامنة للـ AI
+let aiRequestCount = 0;
+const MAX_CONCURRENT_AI = 3;
+
 async function generateComments(channel) {
   console.log("🚨 generateComments CALLED for:", channel);
 
   try {
     if (!GROQ_API_KEY) return fallbackComments();
 
-    const ctx = buildAIScene(channel);
-    const chat = (ctx.chatSample || []).slice(0, 8);
-    const settings = await getChannelSettings(channel);
-
-    if (!settings || !settings.language_mode) {
-      console.log("⚠️ No settings found for channel:", channel);
+    // [FIX #34] Rate limiting للـ AI
+    if (aiRequestCount >= MAX_CONCURRENT_AI) {
+      console.log("⏳ AI max concurrent reached, using fallback");
       return fallbackComments();
     }
 
-    const mode = settings.language_mode || "mix";
-    const arabicType = settings.arabic_type || "darija";
-    const region = settings.region || "me";
-    const persona = settings.persona || "normal";
+    aiRequestCount++;
+    
+    try {
+      const ctx = buildAIScene(channel);
+      const chat = (ctx.chatSample || []).slice(0, 8);
+      const settings = await getChannelSettings(channel);
 
-    const tone = ctx.tone || "hype";
-    const audienceType = ctx.audienceType || "gaming";
-    const intensity = ctx.intensity || "medium";
+      if (!settings || !settings.language_mode) {
+        console.log("⚠️ No settings found for channel:", channel);
+        return fallbackComments();
+      }
 
-    const chatExamples = chat.length
-      ? chat.map(x => "- " + x).join("\n")
-      : "- gg\n- nice\n- lol 😂";
+      const mode = settings.language_mode || "mix";
+      const arabicType = settings.arabic_type || "darija";
+      const region = settings.region || "me";
+      const persona = settings.persona || "normal";
 
-    // 🔥 BUILD DIALECT PROMPT
-    const dialectPrompt = (mode === "arabic" || mode === "mix")
-      ? buildDialectPrompt(arabicType, region)
-      : "";
+      const tone = ctx.tone || "hype";
+      const audienceType = ctx.audienceType || "gaming";
+      const intensity = ctx.intensity || "medium";
 
-    const prompt = `
+      const chatExamples = chat.length
+        ? chat.map(x => "- " + x).join("\n")
+        : "- gg\n- nice\n- lol 😂";
+
+      const dialectPrompt = (mode === "arabic" || mode === "mix")
+        ? buildDialectPrompt(arabicType, region)
+        : "";
+
+      const prompt = `
 You are a REAL viewer inside a Kick livestream chat.
 
 ━━━━━━━━━━━━━━━━━━
@@ -1581,76 +1541,77 @@ No extra text.
 Only pure JSON array.
 `;
 
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + GROQ_API_KEY
-      },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        messages: [
-          {
-            role: "system",
-            content: `You are a livestream chat comment generator. You MUST follow dialect rules EXACTLY. NEVER output Modern Standard Arabic when dialect is requested. Use ONLY the specific dialect vocabulary and grammar shown in the examples.`
-          },
-          { role: "user", content: prompt }
-        ],
-        temperature: 0.4,
-        presence_penalty: 0.8,
-        frequency_penalty: 1.1,
-        max_tokens: 400
-      })
-    });
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + GROQ_API_KEY
+        },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [
+            {
+              role: "system",
+              content: `You are a livestream chat comment generator. You MUST follow dialect rules EXACTLY. NEVER output Modern Standard Arabic when dialect is requested. Use ONLY the specific dialect vocabulary and grammar shown in the examples.`
+            },
+            { role: "user", content: prompt }
+          ],
+          temperature: 0.4,
+          presence_penalty: 0.8,
+          frequency_penalty: 1.1,
+          max_tokens: 400
+        })
+      });
 
-    const data = await response.json();
-    const text = data?.choices?.[0]?.message?.content || "";
+      const data = await response.json();
+      const text = data?.choices?.[0]?.message?.content || "";
 
-    console.log("🧠 AI TEXT RAW:", text);
+      console.log("🧠 AI TEXT RAW:", text);
 
-    let finalComments = [];
+      let finalComments = [];
 
-    const isJSON =
-      text.trim().startsWith("[") &&
-      text.trim().endsWith("]");
+      const isJSON =
+        text.trim().startsWith("[") &&
+        text.trim().endsWith("]");
 
-    if (isJSON) {
-      const parsed = safeParseComments(text);
+      if (isJSON) {
+        const parsed = safeParseComments(text);
 
-      if (parsed.length) {
-        // 🔥 VALIDATE DIALECT
-        finalComments = parsed
-          .map(t => cleanText(t))
-          .filter(t => {
-            if (mode !== "arabic" && mode !== "mix") return isGoodComment(t);
-            const validation = validateDialect(t, arabicType, region);
-            if (!validation.valid) {
-              console.log("⚠️ Dialect validation failed:", t, "→", validation.reason);
-              return false;
-            }
-            return isGoodComment(t);
-          })
-          .map(t => ({ text: t }));
+        if (parsed.length) {
+          finalComments = parsed
+            .map(t => cleanText(t))
+            .filter(t => {
+              if (mode !== "arabic" && mode !== "mix") return isGoodComment(t);
+              const validation = validateDialect(t, arabicType, region);
+              if (!validation.valid) {
+                console.log("⚠️ Dialect validation failed:", t, "→", validation.reason);
+                return false;
+              }
+              return isGoodComment(t);
+            })
+            .map(t => ({ text: t }));
+        }
       }
-    }
 
-    if (!finalComments.length) {
-      // 🔥 FALLBACK WITH DIALECT
-      const profile = getDialectProfile(arabicType, region);
-      if (profile && profile.examples && profile.examples.length > 0) {
-        const dialectFallbacks = profile.examples
-          .slice(0, 5)
-          .map(ex => ({ text: ex }));
-        finalComments = dialectFallbacks;
-      } else {
-        finalComments = fallbackComments().map(t => ({
-          text: cleanText(t)
-        }));
+      if (!finalComments.length) {
+        const profile = getDialectProfile(arabicType, region);
+        if (profile && profile.examples && profile.examples.length > 0) {
+          const dialectFallbacks = profile.examples
+            .slice(0, 5)
+            .map(ex => ({ text: ex }));
+          finalComments = dialectFallbacks;
+        } else {
+          finalComments = fallbackComments().map(t => ({
+            text: cleanText(t)
+          }));
+        }
       }
-    }
 
-    console.log("🚀 FINAL COMMENTS:", finalComments);
-    return finalComments;
+      console.log("🚀 FINAL COMMENTS:", finalComments);
+      return finalComments;
+    } finally {
+      aiRequestCount--;
+    }
 
   } catch (err) {
     console.log("❌ AI error:", err.message);
@@ -1658,8 +1619,6 @@ Only pure JSON array.
   }
 }
 
-// =======================
-// 🔥 REFILL POOL
 async function refillPool(channel) {
   if (!commentPool[channel]) {
     commentPool[channel] = {
@@ -1682,7 +1641,6 @@ async function refillPool(channel) {
   }
 }
 
-// =======================
 app.get("/get-comment", async (req, res) => {
   try {
     const channel = req.query.channel || "general";
@@ -1735,7 +1693,6 @@ app.get("/get-comment", async (req, res) => {
   }
 });
 
-// =======================
 function getHeaders() {
   return {
     apikey: SUPABASE_KEY,
@@ -1745,7 +1702,6 @@ function getHeaders() {
   };
 }
 
-// =======================
 async function refreshChannels() {
   try {
     const r = await fetch(
@@ -1770,10 +1726,8 @@ async function refreshChannels() {
   }
 }
 
-// =======================
-// 🔥 FIXED CORE
+// [FIX #33, #30] Batch processing + try/finally
 async function refreshLive() {
-
   if (refreshLiveRunning) {
     console.log("⛔ refreshLive skipped (still running)");
     return;
@@ -1781,129 +1735,167 @@ async function refreshLive() {
 
   refreshLiveRunning = true;
 
-  if (!cachedChannels.length) {
-    refreshLiveRunning = false;
-    return;
-  }
-
-  console.log("🔄 Checking live...");
-
-  for (const raw of cachedChannels) {
-    const channel = normalize(raw);
-
-    if (!stateMemory[channel]) {
-      stateMemory[channel] = {
-        live: false,
-        success: 0,
-        fail: 0
-      };
+  try {
+    if (!cachedChannels.length) {
+      return;
     }
 
-    let isLiveNow = null;
+    console.log("🔄 Checking live...");
 
-    for (let i = 0; i < 2; i++) {
-      try {
-        const res = await fetch(`https://kick.com/api/v2/channels/${channel}`);
+    // [FIX #33] Batch processing: 5 قنوات في المرة + delay
+    const BATCH_SIZE = 5;
+    const BATCH_DELAY = 1000; // 1 ثانية بين كل batch
 
-        if (!res.ok) {
-          isLiveNow = false;
-          break;
+    for (let i = 0; i < cachedChannels.length; i += BATCH_SIZE) {
+      const batch = cachedChannels.slice(i, i + BATCH_SIZE);
+      
+      await Promise.all(batch.map(async (raw) => {
+        const channel = normalize(raw);
+
+        if (!stateMemory[channel]) {
+          stateMemory[channel] = {
+            live: false,
+            success: 0,
+            fail: 0
+          };
         }
 
-        const data = await res.json();
-        console.log("🔍", channel, data?.livestream?.is_live);
+        let isLiveNow = null;
 
-        let apiLive =
-          data?.livestream &&
-          data.livestream !== null &&
-          data.livestream.is_live === true;
+        for (let i = 0; i < 2; i++) {
+          try {
+            const res = await fetch(`https://kick.com/api/v2/channels/${channel}`);
 
-        if (!apiLive) {
-          let htmlCheck = false;
-          if (apiLive === false && isLiveNow === false) {
-            htmlCheck = await checkLiveFromHTML(channel);
+            if (!res.ok) {
+              isLiveNow = false;
+              break;
+            }
+
+            const data = await res.json();
+            console.log("🔍", channel, data?.livestream?.is_live);
+
+            let apiLive =
+              data?.livestream &&
+              data.livestream !== null &&
+              data.livestream.is_live === true;
+
+            if (!apiLive) {
+              let htmlCheck = false;
+              if (apiLive === false && isLiveNow === false) {
+                htmlCheck = await checkLiveFromHTML(channel);
+              }
+              if (htmlCheck === true) {
+                isLiveNow = true;
+              } else {
+                isLiveNow = false;
+              }
+            } else {
+              isLiveNow = apiLive;
+            }
+
+            break;
+
+          } catch {}
+        }
+
+        const state = stateMemory[channel];
+
+        if (isLiveNow === null) {
+          state.fail++;
+          state.success = 0;
+
+          if (state.live && state.fail >= OFFLINE_CONFIRM) {
+            state.live = false;
           }
-          if (htmlCheck === true) {
-            isLiveNow = true;
-          } else {
-            isLiveNow = false;
+
+          liveCache[channel] = state.live;
+          return;
+        }
+
+        if (isLiveNow) {
+          state.success++;
+          state.fail = 0;
+
+          if (!state.live && state.success >= LIVE_CONFIRM) {
+            state.live = true;
           }
+
         } else {
-          isLiveNow = apiLive;
+          state.fail++;
+          state.success = 0;
+
+          if (state.live && state.fail >= OFFLINE_CONFIRM) {
+            state.live = false;
+          }
         }
 
-        break;
-
-      } catch {}
-    }
-
-    const state = stateMemory[channel];
-
-    if (isLiveNow === null) {
-      state.fail++;
-      state.success = 0;
-
-      if (state.live && state.fail >= OFFLINE_CONFIRM) {
-        state.live = false;
-      }
-
-      liveCache[channel] = state.live;
-      continue;
-    }
-
-    if (isLiveNow) {
-      state.success++;
-      state.fail = 0;
-
-      if (!state.live && state.success >= LIVE_CONFIRM) {
-        state.live = true;
-      }
-
-    } else {
-      state.fail++;
-      state.success = 0;
-
-      if (state.live && state.fail >= OFFLINE_CONFIRM) {
-        state.live = false;
+        liveCache[channel] = state.live;
+      }));
+      
+      // [FIX #33] تأخير بين batches لتخفيف الضغط
+      if (i + BATCH_SIZE < cachedChannels.length) {
+        await new Promise(r => setTimeout(r, BATCH_DELAY));
       }
     }
 
-    liveCache[channel] = state.live;
+    console.log("📡 Live stable updated");
+
+  } finally {
+    // [FIX #30] ضمان إعادة الـ flag حتى في حالة الخطأ
+    refreshLiveRunning = false;
   }
-
-  console.log("📡 Live stable updated");
-  refreshLiveRunning = false;
 }
 
-// =======================
 setInterval(refreshChannels, 30000);
 setInterval(refreshLive, 15000);
 setInterval(() => {
-
   const now = Date.now();
-
   for (const channel in verificationSessions) {
-
     const s = verificationSessions[channel];
-
     if (now - s.lastHeartbeat > 15 * 60 * 1000) {
       s.expired = true;
       s.verified = false;
     }
-
     if (now - s.startedAt > 60 * 60 * 1000) {
       delete verificationSessions[channel];
     }
   }
-
 }, 60000);
 
 refreshChannels();
 refreshLive();
 
-// =======================
-app.get("/sync", (req, res) => {
+// [FIX #35, #40] Memory cleanup محسّن
+setInterval(() => {
+  let cleanedPools = 0;
+  let cleanedHistory = 0;
+  let cleanedStates = 0;
+  
+  for (const channel in commentPool) {
+    if (!cachedChannels.includes(channel)) {
+      delete commentPool[channel];
+      cleanedPools++;
+    }
+  }
+  for (const channel in commentHistory) {
+    if (!cachedChannels.includes(channel)) {
+      delete commentHistory[channel];
+      cleanedHistory++;
+    }
+  }
+  for (const channel in stateMemory) {
+    if (!cachedChannels.includes(channel)) {
+      delete stateMemory[channel];
+      cleanedStates++;
+    }
+  }
+  
+  if (cleanedPools + cleanedHistory + cleanedStates > 0) {
+    console.log(`🧹 Cleaned: ${cleanedPools} pools, ${cleanedHistory} histories, ${cleanedStates} states`);
+  }
+}, 300000);
 
+app.get("/sync", (req, res) => {
   if (verificationMode.active) {
     return res.json({
       status: "active",
@@ -1919,15 +1911,12 @@ app.get("/sync", (req, res) => {
     vipChannels: [...vipChannels],
     verificationActive: false
   });
-
 });
 
-// =======================
 let lastStatusSend = 0;
 let cachedStatusResponse = null;
 
 app.get("/status", (req, res) => {
-
   const now = Date.now();
 
   if (!cachedStatusResponse || now - lastStatusSend > 3000) {
@@ -1941,18 +1930,14 @@ app.get("/status", (req, res) => {
 app.post("/check-live", (req, res) => {
   try {
     const { channel } = req.body;
-
     return res.json({
       live: liveCache[channel] || false
     });
-
   } catch {
     res.json({ live: false });
   }
 });
 
-// =======================
-// 🔥 UPDATED VIP SYSTEM
 app.post("/admin/set-vip", async (req, res) => {
   const key = req.headers["x-admin-key"];
   if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
@@ -1981,7 +1966,6 @@ app.post("/admin/set-vip", async (req, res) => {
     }
 
     console.log("⭐ VIP updated (DB):", channels);
-
     return res.json({ ok: true });
 
   } catch (err) {
@@ -1990,7 +1974,6 @@ app.post("/admin/set-vip", async (req, res) => {
   }
 });
 
-// =======================
 app.post("/admin/remove-vip", async (req, res) => {
   const key = req.headers["x-admin-key"];
   if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
@@ -2010,9 +1993,7 @@ app.post("/admin/remove-vip", async (req, res) => {
     }
 
     console.log("❌ VIP removed (DB):", channels);
-
     await refreshChannels();
-
     return res.json({ ok: true });
 
   } catch (err) {
@@ -2021,9 +2002,7 @@ app.post("/admin/remove-vip", async (req, res) => {
   }
 });
 
-// =======================
 app.post("/admin/start-presence-monitoring", (req, res) => {
-
   const key = req.headers["x-admin-key"];
   if (key !== ADMIN_KEY) {
     return res.status(403).json({ ok: false });
@@ -2044,11 +2023,9 @@ app.post("/admin/start-presence-monitoring", (req, res) => {
   }
 
   console.log("🟢 Presence monitoring started");
-
   res.json({ ok: true });
 });
-// =======================
-// 🔔 SEND GLOBAL NOTICE
+
 app.post("/admin/send-notice", (req, res) => {
   const key = req.headers["x-admin-key"];
 
@@ -2080,8 +2057,6 @@ app.post("/admin/send-notice", (req, res) => {
   }
 });
 
-// =======================
-// 🔔 END GLOBAL NOTICE
 app.post("/admin/end-notice", (req, res) => {
   const key = req.headers["x-admin-key"];
 
@@ -2097,25 +2072,18 @@ app.post("/admin/end-notice", (req, res) => {
   };
 
   console.log("🛑 NOTICE ENDED");
-
   res.json({ ok: true });
 });
 
-// =======================
-// 🔔 GET GLOBAL NOTICE
 app.get("/notice", (req, res) => {
   res.json({
     ...globalNotice,
     serverTime: Date.now()
   });
 });
-// =======================
-// 🧠 START PRESENCE SESSION
 
 app.post("/presence/start", (req, res) => {
-
   try {
-
     const {
       userId,
       channel,
@@ -2123,7 +2091,6 @@ app.post("/presence/start", (req, res) => {
     } = req.body || {};
 
     if (!userId || !channel) {
-
       return res.json({
         ok: false
       });
@@ -2139,7 +2106,6 @@ app.post("/presence/start", (req, res) => {
       now - p.joinedAt < 15000;
 
     if (recentlyStarted) {
-
       return res.json({
         ok: true,
         reused: true
@@ -2147,24 +2113,15 @@ app.post("/presence/start", (req, res) => {
     }
 
     p.userId = userId;
-
     p.channel =
       normalize(channel);
-
     p.verificationActive = true;
-
     p.joinedAt = now;
-
     p.lastPing = now;
-
     p.lastWatchStart = now;
-
     p.pingCount = 0;
-
     p.videoOk = true;
-
     p.disconnected = false;
-
     p.tabId = tabId || null;
 
     console.log(
@@ -2178,7 +2135,6 @@ app.post("/presence/start", (req, res) => {
     });
 
   } catch (err) {
-
     console.log(
       "❌ presence/start error",
       err.message
@@ -2189,13 +2145,9 @@ app.post("/presence/start", (req, res) => {
     });
   }
 });
-// =======================
-// 🧠 PRESENCE HEARTBEAT
 
 app.post("/presence/ping", (req, res) => {
-
   try {
-
     const {
       userId,
       channel,
@@ -2204,7 +2156,6 @@ app.post("/presence/ping", (req, res) => {
     } = req.body || {};
 
     if (!userId) {
-
       return res.json({
         ok: false
       });
@@ -2220,9 +2171,7 @@ app.post("/presence/ping", (req, res) => {
       p.channel &&
       normalize(channel) !== p.channel
     ) {
-
       p.suspicious++;
-
       console.log(
         "⚠️ channel mismatch:",
         userId
@@ -2234,9 +2183,7 @@ app.post("/presence/ping", (req, res) => {
       p.tabId &&
       tabId !== p.tabId
     ) {
-
       p.suspicious++;
-
       console.log(
         "⚠️ tab mismatch:",
         userId
@@ -2250,9 +2197,7 @@ app.post("/presence/ping", (req, res) => {
       p.lastPing &&
       diff < 5000
     ) {
-
       p.suspicious++;
-
       console.log(
         "⚠️ spam ping:",
         userId
@@ -2260,45 +2205,33 @@ app.post("/presence/ping", (req, res) => {
     }
 
     p.lastPing = now;
-
     p.disconnected = false;
-
     p.pingCount++;
-
     p.videoOk =
       videoPlaying === true;
 
     if (
       videoPlaying === true
     ) {
-
       if (!p.lastWatchStart) {
         p.lastWatchStart = now;
       }
-
     } else {
-
       if (p.lastWatchStart) {
-
         p.totalWatchMs +=
           now - p.lastWatchStart;
-
         p.lastWatchStart = 0;
       }
     }
 
     return res.json({
-
       ok: true,
-
       suspicious: p.suspicious,
-
       totalWatchMs:
         p.totalWatchMs
     });
 
   } catch (err) {
-
     console.log(
       "❌ presence/ping error",
       err.message
@@ -2309,13 +2242,9 @@ app.post("/presence/ping", (req, res) => {
     });
   }
 });
-// =======================
-// 🔥 START VERIFICATION SESSION
 
 app.post("/verification/start", (req, res) => {
-
   try {
-
     const { channel } = req.body;
 
     if (!channel) {
@@ -2328,17 +2257,11 @@ app.post("/verification/start", (req, res) => {
       normalize(channel);
 
     verificationSessions[cleanChannel] = {
-
       verified: false,
-
       startedAt: Date.now(),
-
       lastHeartbeat: Date.now(),
-
       totalTime: 0,
-
       completed: false,
-
       expired: false
     };
 
@@ -2352,7 +2275,6 @@ app.post("/verification/start", (req, res) => {
     });
 
   } catch (err) {
-
     console.log(
       "❌ verification start error",
       err.message
@@ -2364,13 +2286,10 @@ app.post("/verification/start", (req, res) => {
   }
 });
 
-// =======================
 let verificationSessions = {};
 
 app.post("/verification/heartbeat", (req, res) => {
-
   try {
-
     const { channel } = req.body;
 
     if (!channel) return res.json({ ok: false });
@@ -2386,9 +2305,7 @@ app.post("/verification/heartbeat", (req, res) => {
     const now = Date.now();
 
     session.lastHeartbeat = now;
-
     session.totalTime = now - session.startedAt;
-
     session.expired = false;
 
     return res.json({
@@ -2401,11 +2318,7 @@ app.post("/verification/heartbeat", (req, res) => {
   }
 });
 
-// =======================
-// 🔥 ADMIN DASHBOARD STATUS API
-
 app.get("/admin/dashboard-status", (req, res) => {
-
   const key = req.headers["x-admin-key"];
   if (key !== ADMIN_KEY) {
     return res.status(403).json({ ok: false });
@@ -2415,12 +2328,9 @@ app.get("/admin/dashboard-status", (req, res) => {
   const result = {};
 
   for (const channel in verificationSessions) {
-
     const session = verificationSessions[channel];
-
     const lastSeen = session.lastHeartbeat || session.startedAt;
     const firstSeen = session.startedAt;
-
     const diff = now - lastSeen;
 
     let status = "red";
@@ -2454,11 +2364,8 @@ app.get("/admin/dashboard-status", (req, res) => {
 
   return res.json(result);
 });
-// =======================
-// 🔴 STOP VERIFICATION
 
 app.post("/admin/stop-verification", (req, res) => {
-
   const key =
     req.headers["x-admin-key"];
 
@@ -2469,9 +2376,7 @@ app.post("/admin/stop-verification", (req, res) => {
   }
 
   verificationSessions = {};
-
   verificationMode.active = false;
-
   verificationMode.channels = [];
 
   console.log("🔴 Verification stopped");
@@ -2480,9 +2385,9 @@ app.post("/admin/stop-verification", (req, res) => {
     ok: true
   });
 });
+
 app.post("/attendance/confirm", (req, res) => {
   try {
-
     const { userId, channel } = req.body;
 
     if (!userId || !channel) {
@@ -2506,11 +2411,7 @@ app.post("/attendance/confirm", (req, res) => {
     return res.json({ ok: false });
   }
 });
-// =======================
 
-// =======================
-// 🔐 ADMIN AUTH VERIFICATION
-// =======================
 app.post("/admin/verify", (req, res) => {
   const { password } = req.body;
 
@@ -2525,14 +2426,47 @@ app.post("/admin/verify", (req, res) => {
   return res.status(403).json({ ok: false, valid: false });
 });
 
-// Serve static files (index.html)
 app.use(express.static('public'));
+
+app.get("/check-user", async (req, res) => {
+  try {
+    const channel = req.query.channel;
+    if (!channel) return res.status(400).json({ error: "Missing channel" });
+    const result = await fetch(`${SUPABASE_URL}/rest/v1/users?channel=eq.${normalize(channel)}`, { headers: getHeaders() });
+    const data = await result.json();
+    if (!data?.length) return res.json(null);
+    const user = data[0];
+    res.json({ channel: user.channel, approved: user.approved, is_deleted: user.is_deleted, password: user.password });
+  } catch { res.status(500).json({ error: "Server error" }); }
+});
+
+app.post("/register", async (req, res) => {
+  try {
+    const { channel, password, preferred_style, preferred_arabic_type, preferred_country, preferred_persona } = req.body;
+    if (!channel || !password) return res.status(400).json({ ok: false, error: "Missing fields" });
+    const result = await fetch(`${SUPABASE_URL}/rest/v1/users`, {
+      method: "POST",
+      headers: getHeaders(),
+      body: JSON.stringify({
+        channel: normalize(channel), password, approved: false, is_deleted: false,
+        preferred_style, preferred_arabic_type, preferred_country, preferred_persona,
+        created_at: new Date().toISOString()
+      })
+    });
+    if (!result.ok) {
+      const error = await result.json();
+      if (error?.message?.includes("duplicate")) return res.status(409).json({ ok: false, error: "Channel already registered" });
+      return res.status(500).json({ ok: false });
+    }
+    res.json({ ok: true });
+  } catch { res.status(500).json({ ok: false }); }
+});
 
 app.listen(PORT, () => {
   console.log("🚀 Server running on port", PORT);
+  console.log("📊 Features: Rate limiting | Memory cleanup | Secure admin | Optimized intervals | AI concurrency limit");
 });
 
-// =======================
 app.post("/admin/update", async (req, res) => {
   const key = req.headers["x-admin-key"];
   if (key !== ADMIN_KEY) return res.status(403).json({ ok: false });
