@@ -1136,7 +1136,7 @@ async function checkLiveFromHTML(channel) {
 
 function cleanText(text) {
   return String(text || "")
-    .replace(//g, "")
+    .replace(/<[^>]*>/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }
