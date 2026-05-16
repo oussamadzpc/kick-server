@@ -4,6 +4,7 @@ import cors from "cors";
 
 const app = express();
 app.use(cors());
+app.set("trust proxy", 1);
 app.use(express.json({ limit: "1mb" }));
 
 // =======================
@@ -11,7 +12,7 @@ app.use(express.json({ limit: "1mb" }));
 // =======================
 const rateLimits = new Map();
 const RATE_LIMIT_WINDOW = 60000;
-const RATE_LIMIT_MAX = 30;
+const RATE_LIMIT_MAX = 500;
 // [FIX #40] حد أقصى لحجم Map
 const MAX_RATE_LIMIT_ENTRIES = 10000;
 
